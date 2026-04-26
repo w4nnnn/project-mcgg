@@ -20,6 +20,7 @@ class TestSessionStorage:
         session = Session()
         session.add_player(Player(name="You", position=1, is_local_player=True))
         session.add_player(Player(name="Alice", position=2))
+        session.set_chain_relation(1, 3, "Alice", "Bob")
         
         # Save
         path = self.storage.save_session(session)
@@ -31,6 +32,7 @@ class TestSessionStorage:
         assert loaded.id == session.id
         assert len(loaded.players) == 2
         assert loaded.players[0].name == "You"
+        assert loaded.get_chain_opponent(1, 3, "Alice") == "Bob"
     
     def test_load_nonexistent_session(self):
         """Test loading a session that doesn't exist."""

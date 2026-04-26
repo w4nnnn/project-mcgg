@@ -80,22 +80,26 @@ class PredictionEngine:
                 warnings=["No 'first ex' found - need round i-2 data"]
             )
         
-        i3_record = self.session.get_round_record(phase=1, round_num=3)
-        if not i3_record or not i3_record.opponent:
+        mapped_name = self.session.get_chain_opponent(1, 3, first_ex.name)
+        predicted = self._resolve_player(mapped_name) if mapped_name else None
+        if not predicted:
+            i3_record = self.session.get_round_record(phase=1, round_num=3)
+            if i3_record and i3_record.opponent:
+                predicted = i3_record.opponent
+        if not predicted:
             return Prediction(
                 predicted_opponent=None, confidence=0.0,
                 prediction_method="i4_no_i3_history", is_valid=False,
                 warnings=["No data for round i-3 - cannot chain predict"]
             )
-        
-        predicted = i3_record.opponent
+
         confidence = self._calculate_confidence()
         chain = f"You → {first_ex.name} (i-2) → {predicted.name} (i-3)"
         
         return Prediction(
             predicted_opponent=predicted,
             confidence=confidence,
-            based_on_round=i3_record,
+            based_on_round=self.session.get_round_record(phase=1, round_num=3),
             prediction_method="i4_rule",
             chain_description=chain,
             warnings=self._get_warnings()
@@ -117,24 +121,32 @@ class PredictionEngine:
                 warnings=["No 'first ex' for phase 2 found - need round ii-1 data"]
             )
         
-        ii1_record = self.session.get_round_record(
-            phase=self.session.current_phase, round_num=1
+        mapped_name = self.session.get_chain_opponent(
+            self.session.current_phase, 1, first_ex.name
         )
-        if not ii1_record or not ii1_record.opponent:
+        predicted = self._resolve_player(mapped_name) if mapped_name else None
+        if not predicted:
+            ii1_record = self.session.get_round_record(
+                phase=self.session.current_phase, round_num=1
+            )
+            if ii1_record and ii1_record.opponent:
+                predicted = ii1_record.opponent
+        if not predicted:
             return Prediction(
                 predicted_opponent=None, confidence=0.0,
                 prediction_method="ii2_no_ii1_history", is_valid=False,
                 warnings=["No data for round ii-1 - cannot chain predict"]
             )
-        
-        predicted = ii1_record.opponent
+
         confidence = self._calculate_confidence()
         chain = f"You → {first_ex.name} (ii-1) → {predicted.name} (ii-1)"
         
         return Prediction(
             predicted_opponent=predicted,
             confidence=confidence,
-            based_on_round=ii1_record,
+            based_on_round=self.session.get_round_record(
+                phase=self.session.current_phase, round_num=1
+            ),
             prediction_method="ii2_rule",
             chain_description=chain,
             warnings=self._get_warnings()
@@ -160,23 +172,26 @@ class PredictionEngine:
         
         ii2_opponent = ii2_record.opponent
         
-        # Now find what ii2_opponent faced at round i-4
-        i4_record = self.session.get_round_record(phase=1, round_num=4)
-        if not i4_record or not i4_record.opponent:
+        mapped_name = self.session.get_chain_opponent(1, 4, ii2_opponent.name)
+        predicted = self._resolve_player(mapped_name) if mapped_name else None
+        if not predicted:
+            i4_record = self.session.get_round_record(phase=1, round_num=4)
+            if i4_record and i4_record.opponent:
+                predicted = i4_record.opponent
+        if not predicted:
             return Prediction(
                 predicted_opponent=None, confidence=0.0,
                 prediction_method="ii4_no_i4", is_valid=False,
                 warnings=["No data for round i-4 - cannot chain predict"]
             )
-        
-        predicted = i4_record.opponent
+
         confidence = self._calculate_confidence() * 0.95  # Slightly lower
         chain = f"You → {ii2_opponent.name} (ii-2) → {predicted.name} (i-4)"
         
         return Prediction(
             predicted_opponent=predicted,
             confidence=confidence,
-            based_on_round=i4_record,
+            based_on_round=self.session.get_round_record(phase=1, round_num=4),
             prediction_method="ii4_rule",
             chain_description=chain,
             warnings=self._get_warnings()
@@ -201,25 +216,33 @@ class PredictionEngine:
             )
         
         ii4_opponent = ii4_record.opponent
-        
-        ii2_record = self.session.get_round_record(
-            phase=self.session.current_phase, round_num=2
+
+        mapped_name = self.session.get_chain_opponent(
+            self.session.current_phase, 2, ii4_opponent.name
         )
-        if not ii2_record or not ii2_record.opponent:
+        predicted = self._resolve_player(mapped_name) if mapped_name else None
+        if not predicted:
+            ii2_record = self.session.get_round_record(
+                phase=self.session.current_phase, round_num=2
+            )
+            if ii2_record and ii2_record.opponent:
+                predicted = ii2_record.opponent
+        if not predicted:
             return Prediction(
                 predicted_opponent=None, confidence=0.0,
                 prediction_method="ii5_no_ii2", is_valid=False,
                 warnings=["No data for round ii-2 - cannot chain predict"]
             )
-        
-        predicted = ii2_record.opponent
+
         confidence = self._calculate_confidence() * 0.90
         chain = f"You → {ii4_opponent.name} (ii-4) → {predicted.name} (ii-2)"
         
         return Prediction(
             predicted_opponent=predicted,
             confidence=confidence,
-            based_on_round=ii2_record,
+            based_on_round=self.session.get_round_record(
+                phase=self.session.current_phase, round_num=2
+            ),
             prediction_method="ii5_rule",
             chain_description=chain,
             warnings=self._get_warnings()
@@ -244,29 +267,43 @@ class PredictionEngine:
             )
         
         ii5_opponent = ii5_record.opponent
-        
-        ii3_record = self.session.get_round_record(
-            phase=self.session.current_phase, round_num=3
+
+        mapped_name = self.session.get_chain_opponent(
+            self.session.current_phase, 3, ii5_opponent.name
         )
-        if not ii3_record or not ii3_record.opponent:
+        predicted = self._resolve_player(mapped_name) if mapped_name else None
+        if not predicted:
+            ii3_record = self.session.get_round_record(
+                phase=self.session.current_phase, round_num=3
+            )
+            if ii3_record and ii3_record.opponent:
+                predicted = ii3_record.opponent
+        if not predicted:
             return Prediction(
                 predicted_opponent=None, confidence=0.0,
                 prediction_method="ii6_no_ii3", is_valid=False,
                 warnings=["No data for round ii-3 - cannot chain predict"]
             )
-        
-        predicted = ii3_record.opponent
+
         confidence = self._calculate_confidence() * 0.85
         chain = f"You → {ii5_opponent.name} (ii-5) → {predicted.name} (ii-3)"
         
         return Prediction(
             predicted_opponent=predicted,
             confidence=confidence,
-            based_on_round=ii3_record,
+            based_on_round=self.session.get_round_record(
+                phase=self.session.current_phase, round_num=3
+            ),
             prediction_method="ii6_rule",
             chain_description=chain,
             warnings=self._get_warnings()
         )
+
+    def _resolve_player(self, player_name: Optional[str]) -> Optional[Player]:
+        """Find a player in current session by name."""
+        if not player_name:
+            return None
+        return self.session.get_player_by_name(player_name)
     
     def _get_first_ex(self) -> Optional[Player]:
         """Get the 'first ex' (mantan pertama) - opponent at round i-2."""

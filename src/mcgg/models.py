@@ -171,6 +171,7 @@ class Session:
     current_round: int = 1
     is_active: bool = True
     winner: Optional[str] = None
+    chain_relations: dict[str, str] = field(default_factory=dict)
 
     @property
     def local_player(self) -> Optional[Player]:
@@ -262,6 +263,21 @@ class Session:
             if record.phase == phase and record.round == round_num:
                 return record
         return None
+
+    def set_chain_relation(self, phase: int, round_num: int, source_player: str, opponent_player: str) -> None:
+        """Store extra chain data: who a player faced in a round."""
+        source = source_player.strip().lower()
+        target = opponent_player.strip()
+        if not source or not target:
+            return
+        self.chain_relations[f"{phase}-{round_num}:{source}"] = target
+
+    def get_chain_opponent(self, phase: int, round_num: int, source_player: str) -> Optional[str]:
+        """Fetch stored chain relation for a player in specific round."""
+        source = source_player.strip().lower()
+        if not source:
+            return None
+        return self.chain_relations.get(f"{phase}-{round_num}:{source}")
 
     def end_session(self) -> None:
         """Mark the session as ended."""

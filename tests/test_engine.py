@@ -102,6 +102,35 @@ class TestPredictionEngine:
         # i-4 should be predictable
         assert "i-4" in predictable_rounds
 
+    def test_i4_uses_chain_relation_mapping(self):
+        """Predict i-4 from explicitly mapped i-3 relation."""
+        self.session.current_phase = 1
+        self.session.current_round = 2
+        self.session.add_round(self.bob)  # i-2, first ex
+        self.session.current_round = 4
+        self.session.set_chain_relation(1, 3, "Bob", "Charlie")
+
+        engine = PredictionEngine(self.session)
+        pred = engine.predict()
+        assert pred.is_valid
+        assert pred.predicted_opponent is not None
+        assert pred.predicted_opponent.name == "Charlie"
+
+    def test_ii5_uses_chain_relation_mapping(self):
+        """Predict ii-5 from mapped relation at ii-2."""
+        self.session.current_phase = 2
+        self.session.current_round = 5
+        ii4_record = self.session.add_round(self.alice)
+        ii4_record.phase = 2
+        ii4_record.round = 4
+        self.session.set_chain_relation(2, 2, "Alice", "Bob")
+
+        engine = PredictionEngine(self.session)
+        pred = engine.predict()
+        assert pred.is_valid
+        assert pred.predicted_opponent is not None
+        assert pred.predicted_opponent.name == "Bob"
+
 
 class TestSessionModel:
     """Test cases for Session model."""

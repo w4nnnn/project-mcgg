@@ -29,24 +29,30 @@ pip install -e .
 
 ## Usage
 
-### Mode interaktif (TUI minimal)
+### Mode interaktif (TUI guided flow)
 
-Mode ini memberi alur semi-interaktif berbasis menu untuk flow utama:
-new session, resume, record, predict, dan status.
+Mode ini menyatukan `new session`, `status`, `predict`, dan `record round`
+dalam satu alur ronde terpandu.
 
 ```bash
 mcgg tui
 ```
 
-Di dalam menu:
+Flow utama:
 
-- `1` buat sesi baru
-- `2` lanjutkan sesi
-- `3` rekam ronde
-- `4` jalankan prediksi
-- `5` lihat status sesi
-- `6` akhiri sesi
-- `0` keluar dari mode interaktif
+1. Pilih `new` atau `resume`.
+2. Jika `new`, isi 7 nama lawan satu per satu. Pemain lokal otomatis bernama `Kamu`.
+3. Sistem menampilkan status ronde aktif.
+4. Jika ronde bisa diprediksi, sistem menampilkan prediksi sebelum input hasil.
+5. Tekan Enter untuk lanjut input ronde, atau ketik `q` untuk keluar.
+6. Sistem menyimpan ronde dan otomatis pindah ke ronde berikutnya.
+
+Prompt data chain tambahan muncul di ronde penting untuk prediksi:
+
+- `i-3`: sistem menanyakan lawan dari lawan `i-2` (mantan pertama).
+- `ii-2`: sistem menanyakan lawan dari lawan `ii-1`.
+- `ii-4`: sistem menanyakan lawan dari lawan `ii-2`.
+- Data ini digunakan untuk membantu prediksi sampai `ii-5` dan `ii-6`.
 
 ### Mulai Sesi Baru
 
@@ -91,8 +97,8 @@ mcgg list-sessions
 mcgg resume <session_id>
 ```
 
-Jika kamu ingin workflow cepat dalam satu command, jalankan `mcgg tui`
-lalu ikuti menu interaktif tanpa perlu mengetik command terpisah.
+Jika kamu ingin workflow cepat tanpa berpindah command, jalankan `mcgg tui`
+dan lanjutkan ronde di alur terpandu.
 
 ### Export Data
 

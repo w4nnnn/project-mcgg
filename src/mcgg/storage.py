@@ -106,6 +106,7 @@ class SessionStorage:
             "current_round": session.current_round,
             "is_active": session.is_active,
             "winner": session.winner,
+            "chain_relations": session.chain_relations,
             "players": [
                 {
                     "id": p.id,
@@ -142,6 +143,7 @@ class SessionStorage:
             current_round=data.get("current_round", 1),
             is_active=data.get("is_active", True),
             winner=data.get("winner"),
+            chain_relations=data.get("chain_relations", {}),
         )
         
         # Recreate players

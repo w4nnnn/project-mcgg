@@ -4,8 +4,7 @@ Main entry point for the command-line application.
 """
 
 import typer
-from typing import Optional, List
-import msvcrt
+from typing import Optional, List, Tuple
 from rich.console import Console
 from rich.table import Table
 from rich.prompt import Prompt
@@ -80,7 +79,12 @@ def _resume_session(session_id: str, language: Language = Language.ID) -> Sessio
     return session
 
 
-def _record_round(opponent: str, result: MatchResult, notes: Optional[str] = None) -> Session:
+def _record_round(
+    opponent: str,
+    result: MatchResult,
+    notes: Optional[str] = None,
+    chain_pairs: Optional[List[Tuple[str, str]]] = None,
+) -> Session:
     """Record one round and persist session."""
     session = get_session()
     _ = notes  # Reserved for future metadata.
@@ -99,6 +103,8 @@ def _record_round(opponent: str, result: MatchResult, notes: Optional[str] = Non
 
     record = session.add_round(opp_player or Player(name="Monster"), opp_type)
     record.result = result
+    for source_name, target_name in chain_pairs or []:
+        session.set_chain_relation(record.phase, record.round, source_name, target_name)
     session.advance_round()
     storage.save_session(session)
     return session
@@ -109,31 +115,6 @@ def _predict_current() -> "Prediction":
     session = get_session()
     engine = PredictionEngine(session)
     return engine.predict()
-
-
-def _select_menu_option(title: str, options: List[str], default_index: int = 0) -> int:
-    """Interactive arrow-key selector for TUI menu."""
-    index = max(0, min(default_index, len(options) - 1))
-    while True:
-        console.clear()
-        console.print("[bold cyan]MCGG Interactive Mode[/bold cyan]")
-        console.print(f"[bold]{title}[/bold]")
-        console.print("Gunakan [bold]panah atas/bawah[/bold], lalu [bold]Enter[/bold].\n")
-
-        for i, label in enumerate(options):
-            prefix = "[green]>[/green]" if i == index else " "
-            style = "bold green" if i == index else "white"
-            console.print(f"{prefix} [{style}]{label}[/{style}]")
-
-        key = msvcrt.getch()
-        if key == b"\r":
-            return index
-        if key in (b"\x00", b"\xe0"):  # Arrow/function key prefix
-            key2 = msvcrt.getch()
-            if key2 == b"H":  # Up
-                index = (index - 1) % len(options)
-            elif key2 == b"P":  # Down
-                index = (index + 1) % len(options)
 
 
 def _collect_players_for_tui() -> List[str]:
@@ -154,6 +135,105 @@ def _collect_players_for_tui() -> List[str]:
             continue
         opponents.append(name)
     return ["Kamu", *opponents]
+
+
+def _press_enter_or_quit(message: str = "Tekan Enter untuk lanjut (atau ketik q untuk keluar TUI)") -> bool:
+    """Return False when user chooses to quit."""
+    action = Prompt.ask(message, default="")
+    return action.strip().lower() != "q"
+
+
+def _collect_chain_pairs(session: Session, opponent: str) -> List[Tuple[str, str]]:
+    """Collect extra chain mapping prompts for specific rounds."""
+    pairs: List[Tuple[str, str]] = []
+    rn = session.current_round_number
+
+    if rn.value == "i-2":
+        # Mantan pertama penting untuk i-4
+        pairs.append(("Kamu", opponent))
+        return pairs
+
+    if rn.value == "i-3":
+        first_ex = session.get_round_record(1, 2)
+        if first_ex and first_ex.opponent:
+            mapped = Prompt.ask(
+                f"Di i-3, [bold]{first_ex.opponent.name}[/bold] melawan siapa?"
+            ).strip()
+            if mapped:
+                pairs.append((first_ex.opponent.name, mapped))
+        return pairs
+
+    if rn.value == "ii-1":
+        pairs.append(("Kamu", opponent))
+        return pairs
+
+    if rn.value == "ii-2":
+        phase = session.current_phase
+        first_ex = session.get_round_record(phase, 1)
+        if first_ex and first_ex.opponent:
+            mapped = Prompt.ask(
+                f"Di ii-2, [bold]{first_ex.opponent.name}[/bold] melawan siapa?"
+            ).strip()
+            if mapped:
+                pairs.append((first_ex.opponent.name, mapped))
+        return pairs
+
+    if rn.value == "ii-4":
+        ii2 = session.get_round_record(session.current_phase, 2)
+        if ii2 and ii2.opponent:
+            mapped = Prompt.ask(
+                f"Di ii-4, [bold]{ii2.opponent.name}[/bold] melawan siapa?"
+            ).strip()
+            if mapped:
+                pairs.append((ii2.opponent.name, mapped))
+        return pairs
+
+    return pairs
+
+
+def _show_guided_round_banner(session: Session) -> None:
+    rn = session.current_round_number
+    console.print(f"\n[bold]Ronde {rn.value}[/bold] - Fase {session.current_phase}")
+    console.print(f"Tipe: {'Predictable' if rn.is_predictable else 'Random'}")
+
+
+def _run_guided_round_loop() -> None:
+    """Unified guided flow: status -> predict -> input -> record."""
+    while True:
+        session = get_session()
+        _show_current_status()
+        _show_guided_round_banner(session)
+
+        if session.current_round_number.is_predictable:
+            predict()
+
+        if not _press_enter_or_quit():
+            console.print("[cyan]Sesi tersimpan. Keluar dari mode interaktif.[/cyan]")
+            break
+
+        round_number = session.current_round_number
+        if round_number.is_monster_round:
+            opponent = "monster"
+            console.print("[cyan]Ronde monster terdeteksi: lawan otomatis 'monster'.[/cyan]")
+        else:
+            opponent = Prompt.ask("Kamu melawan siapa di ronde ini?").strip()
+            while not opponent:
+                opponent = Prompt.ask("Nama lawan tidak boleh kosong, isi lagi").strip()
+
+        result_raw = Prompt.ask("Hasil ronde", choices=["win", "lose", "draw"], default="win")
+        notes = Prompt.ask("Catatan (opsional)", default="")
+        chain_pairs = _collect_chain_pairs(session, opponent)
+        updated = _record_round(
+            opponent=opponent,
+            result=MatchResult(result_raw),
+            notes=notes or None,
+            chain_pairs=chain_pairs,
+        )
+        just_recorded = updated.round_history[-1]
+        console.print(
+            f"[green]Tersimpan:[/green] {just_recorded.round_number.value} vs "
+            f"{opponent} ({result_raw}). Selanjutnya: {updated.current_round_number.value}"
+        )
 
 
 @app.command()
@@ -243,63 +323,34 @@ def predict():
 def tui(
     language: Language = typer.Option(Language.ID, "--lang", help="Bahasa"),
 ):
-    """Mode semi-interaktif berbasis Rich prompt."""
+    """Mode interaktif terpandu berbasis alur ronde."""
     get_i18n().set_language(language)
-    menu_labels = [
-        "New Session",
-        "Resume Session",
-        "Record Round",
-        "Predict",
-        "Status",
-        "End Session",
-        "Exit TUI",
-    ]
-    while True:
-        choice = _select_menu_option("Menu utama", menu_labels, default_index=4)
+    console.print("[bold cyan]MCGG Guided TUI[/bold cyan]")
+    action = Prompt.ask(
+        "Pilih mode awal",
+        choices=["new", "resume", "exit"],
+        default="new",
+    )
+    if action == "exit":
+        console.print("[cyan]Keluar dari mode interaktif.[/cyan]")
+        return
 
-        try:
-            if choice == 0:
-                player_names = _collect_players_for_tui()
-                session = _create_session(player_names, "Kamu", language)
-                console.print(f"[green]Sesi baru dibuat:[/green] {session.id}")
-                _show_current_status()
-                Prompt.ask("Tekan Enter untuk kembali ke menu", default="")
-            elif choice == 1:
-                session_id = Prompt.ask("Masukkan session ID")
-                session = _resume_session(session_id, language)
-                console.print(f"[green]Sesi dilanjutkan:[/green] {session.id}")
-                _show_current_status()
-                Prompt.ask("Tekan Enter untuk kembali ke menu", default="")
-            elif choice == 2:
-                session = get_session()
-                default_opp = "monster" if session.current_round_number.is_monster_round else ""
-                opponent = Prompt.ask("Lawan (nama pemain atau 'monster')", default=default_opp)
-                result_raw = Prompt.ask("Hasil", choices=["win", "lose", "draw"], default="win")
-                notes = Prompt.ask("Catatan (opsional)", default="")
-                result = MatchResult(result_raw)
-                updated = _record_round(opponent, result, notes or None)
-                rec = updated.round_history[-1]
-                console.print(f"[green]Ronde direkam:[/green] {rec.round_number.value} vs {opponent} ({result.value})")
-                _show_current_status()
-                Prompt.ask("Tekan Enter untuk kembali ke menu", default="")
-            elif choice == 3:
-                predict()
-                Prompt.ask("Tekan Enter untuk kembali ke menu", default="")
-            elif choice == 4:
-                _show_current_status()
-                Prompt.ask("Tekan Enter untuk kembali ke menu", default="")
-            elif choice == 5:
-                end_session()
-                Prompt.ask("Tekan Enter untuk kembali ke menu", default="")
-            elif choice == 6:
-                console.print("[cyan]Keluar dari mode interaktif.[/cyan]")
-                break
-        except typer.Exit:
-            console.print("[red]Aksi dibatalkan karena input/state tidak valid.[/red]")
-            Prompt.ask("Tekan Enter untuk kembali ke menu", default="")
-        except Exception as exc:  # pragma: no cover - safeguard for interactive loop
-            console.print(f"[red]Terjadi error:[/red] {exc}")
-            Prompt.ask("Tekan Enter untuk kembali ke menu", default="")
+    try:
+        if action == "new":
+            player_names = _collect_players_for_tui()
+            session = _create_session(player_names, "Kamu", language)
+            console.print(f"[green]Sesi baru dibuat:[/green] {session.id}")
+        else:
+            session_id = Prompt.ask("Masukkan session ID")
+            session = _resume_session(session_id, language)
+            console.print(f"[green]Sesi dilanjutkan:[/green] {session.id}")
+
+        _show_current_status()
+        _run_guided_round_loop()
+    except typer.Exit:
+        console.print("[red]Aksi dibatalkan karena input/state tidak valid.[/red]")
+    except Exception as exc:  # pragma: no cover - safeguard for interactive loop
+        console.print(f"[red]Terjadi error:[/red] {exc}")
 
 
 @app.command()
