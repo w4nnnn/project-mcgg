@@ -7,6 +7,7 @@ import typer
 from typing import Optional, List
 from rich.console import Console
 from rich.table import Table
+from rich.prompt import Prompt
 
 from mcgg.models import Session, Player, RoundType, RoundNumber, MatchResult
 from mcgg.engine import PredictionEngine
@@ -29,6 +30,86 @@ def get_session() -> Session:
     return current_session
 
 
+def _create_session(
+    player_names: List[str],
+    your_name: str,
+    language: Language = Language.ID,
+) -> Session:
+    """Create and persist a new session."""
+    global current_session
+
+    if len(player_names) < 2:
+        typer.echo("Minimal 2 pemain diperlukan.", err=True)
+        raise typer.Exit(code=1)
+    if len(player_names) > 8:
+        typer.echo("Maksimal 8 pemain.", err=True)
+        raise typer.Exit(code=1)
+    if your_name not in player_names:
+        typer.echo(f"--you '{your_name}' harus ada dalam daftar pemain.", err=True)
+        raise typer.Exit(code=1)
+
+    get_i18n().set_language(language)
+
+    session = Session()
+    for i, name in enumerate(player_names, start=1):
+        session.add_player(
+            Player(
+                name=name,
+                position=i,
+                is_local_player=(name == your_name),
+            )
+        )
+
+    current_session = session
+    storage.save_session(session)
+    return session
+
+
+def _resume_session(session_id: str, language: Language = Language.ID) -> Session:
+    """Load and set the active session by ID."""
+    global current_session
+
+    get_i18n().set_language(language)
+    session = storage.load_session(session_id)
+    if session is None:
+        typer.echo(f"Sesi '{session_id}' tidak ditemukan.", err=True)
+        raise typer.Exit(code=1)
+
+    current_session = session
+    return session
+
+
+def _record_round(opponent: str, result: MatchResult, notes: Optional[str] = None) -> Session:
+    """Record one round and persist session."""
+    session = get_session()
+    _ = notes  # Reserved for future metadata.
+
+    opponent_player = session.get_player_by_name(opponent)
+    if opponent.lower() == "monster":
+        opp_type = RoundType.MONSTER
+        opp_player = None
+    elif opponent_player:
+        opp_type = RoundType.USER
+        opp_player = opponent_player
+    else:
+        opp_player = Player(name=opponent, position=0)
+        opp_type = RoundType.USER
+        session.add_player(opp_player)
+
+    record = session.add_round(opp_player or Player(name="Monster"), opp_type)
+    record.result = result
+    session.advance_round()
+    storage.save_session(session)
+    return session
+
+
+def _predict_current() -> "Prediction":
+    """Predict opponent for current session state."""
+    session = get_session()
+    engine = PredictionEngine(session)
+    return engine.predict()
+
+
 @app.command()
 def new_session(
     player_names: List[str] = typer.Option(
@@ -48,36 +129,8 @@ def new_session(
     ),
 ):
     """Mulai sesi game baru."""
-    global current_session
-    
-    # Validate
-    if len(player_names) < 2:
-        typer.echo("Minimal 2 pemain diperlukan.", err=True)
-        raise typer.Exit(code=1)
-    if len(player_names) > 8:
-        typer.echo("Maksimal 8 pemain.", err=True)
-        raise typer.Exit(code=1)
-    if your_name not in player_names:
-        typer.echo(f"--you '{your_name}' harus ada dalam daftar pemain.", err=True)
-        raise typer.Exit(code=1)
-    
-    # Set language
-    get_i18n().set_language(language)
-    
-    # Create session
-    session = Session()
-    for i, name in enumerate(player_names, start=1):
-        is_local = (name == your_name)
-        player = Player(
-            name=name,
-            position=i,
-            is_local_player=is_local
-        )
-        session.add_player(player)
-    
-    current_session = session
-    storage.save_session(session)
-    
+    session = _create_session(player_names, your_name, language)
+
     console.print(f"[green]Sesi baru dibuat![/green]")
     console.print(f"Pemain lokal: [bold]{your_name}[/bold]")
     console.print(f"Total pemain: {len(player_names)}")
@@ -92,16 +145,7 @@ def resume(
     language: Language = typer.Option(Language.ID, "--lang", help="Bahasa"),
 ):
     """Lanjutkan sesi yang sudah ada."""
-    global current_session
-    
-    get_i18n().set_language(language)
-    session = storage.load_session(session_id)
-    
-    if session is None:
-        typer.echo(f"Sesi '{session_id}' tidak ditemukan.", err=True)
-        raise typer.Exit(code=1)
-    
-    current_session = session
+    session = _resume_session(session_id, language)
     console.print(f"[green]Sesi dilanjutkan![/green]")
     _show_current_status()
 
@@ -113,33 +157,9 @@ def record(
     notes: Optional[str] = typer.Option(None, "--notes", "-n", help="Catatan tambahan"),
 ):
     """Rekam hasil ronde."""
-    session = get_session()
-    
-    opponent_player = session.get_player_by_name(opponent)
-    
-    if opponent.lower() == "monster":
-        opp_type = RoundType.MONSTER
-        opp_player = None
-    elif opponent_player:
-        opp_type = RoundType.USER
-        opp_player = opponent_player
-    else:
-        # Create new player (opponent we don't have in our list)
-        opp_player = Player(name=opponent, position=0)
-        opp_type = RoundType.USER
-        session.add_player(opp_player)
-    
-    # Add round
-    record = session.add_round(opp_player or Player(name="Monster"), opp_type)
-    
-    # Update session state
-    session.current_round += 1
-    if session.current_round > 6:
-        session.current_round = 1
-        session.current_phase += 1
-    
-    storage.save_session(session)
-    
+    session = _record_round(opponent, result, notes)
+    record = session.round_history[-1]
+
     rn = record.round_number
     console.print(f"[green]Ronde direkam:[/green] {rn.value}")
     console.print(f"  Lawan: {opponent}")
@@ -153,9 +173,7 @@ def record(
 def predict():
     """Prediksi lawan untuk ronde saat ini."""
     session = get_session()
-    engine = PredictionEngine(session)
-    pred = engine.predict()
-    
+    pred = _predict_current()
     rn = session.current_round_number
     
     console.print(f"\n[bold]Prediksi untuk {rn.value}:[/bold]")
@@ -173,6 +191,70 @@ def predict():
         console.print(f"  Alasan: {pred.prediction_method}")
         for w in pred.warnings:
             console.print(f"  [yellow]Note:[/yellow] {w}")
+
+
+@app.command()
+def tui(
+    language: Language = typer.Option(Language.ID, "--lang", help="Bahasa"),
+):
+    """Mode semi-interaktif berbasis Rich prompt."""
+    get_i18n().set_language(language)
+    console.print("[bold cyan]MCGG Interactive Mode[/bold cyan]")
+    console.print("Ketik nomor aksi untuk melanjutkan.")
+
+    while True:
+        console.print("\n[bold]Menu[/bold]")
+        console.print("1) New Session")
+        console.print("2) Resume Session")
+        console.print("3) Record Round")
+        console.print("4) Predict")
+        console.print("5) Status")
+        console.print("6) End Session")
+        console.print("0) Exit TUI")
+
+        choice = Prompt.ask(
+            "Pilih aksi",
+            choices=["0", "1", "2", "3", "4", "5", "6"],
+            default="5",
+        )
+
+        try:
+            if choice == "1":
+                names_raw = Prompt.ask("Daftar pemain (pisahkan dengan koma)")
+                player_names = [name.strip() for name in names_raw.split(",") if name.strip()]
+                your_name = Prompt.ask("Nama kamu (harus ada di daftar pemain)")
+                session = _create_session(player_names, your_name, language)
+                console.print(f"[green]Sesi baru dibuat:[/green] {session.id}")
+                _show_current_status()
+            elif choice == "2":
+                session_id = Prompt.ask("Masukkan session ID")
+                session = _resume_session(session_id, language)
+                console.print(f"[green]Sesi dilanjutkan:[/green] {session.id}")
+                _show_current_status()
+            elif choice == "3":
+                session = get_session()
+                default_opp = "monster" if session.current_round_number.is_monster_round else ""
+                opponent = Prompt.ask("Lawan (nama pemain atau 'monster')", default=default_opp)
+                result_raw = Prompt.ask("Hasil", choices=["win", "lose", "draw"], default="win")
+                notes = Prompt.ask("Catatan (opsional)", default="")
+                result = MatchResult(result_raw)
+                updated = _record_round(opponent, result, notes or None)
+                rec = updated.round_history[-1]
+                console.print(f"[green]Ronde direkam:[/green] {rec.round_number.value} vs {opponent} ({result.value})")
+                _show_current_status()
+            elif choice == "4":
+                predict()
+            elif choice == "5":
+                _show_current_status()
+            elif choice == "6":
+                end_session()
+            elif choice == "0":
+                console.print("[cyan]Keluar dari mode interaktif.[/cyan]")
+                break
+        except typer.Exit:
+            console.print("[red]Aksi dibatalkan karena input/state tidak valid.[/red]")
+        except Exception as exc:  # pragma: no cover - safeguard for interactive loop
+            console.print(f"[red]Terjadi error:[/red] {exc}")
 
 
 @app.command()

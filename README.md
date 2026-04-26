@@ -29,6 +29,25 @@ pip install -e .
 
 ## Usage
 
+### Mode interaktif (TUI minimal)
+
+Mode ini memberi alur semi-interaktif berbasis menu untuk flow utama:
+new session, resume, record, predict, dan status.
+
+```bash
+mcgg tui
+```
+
+Di dalam menu:
+
+- `1` buat sesi baru
+- `2` lanjutkan sesi
+- `3` rekam ronde
+- `4` jalankan prediksi
+- `5` lihat status sesi
+- `6` akhiri sesi
+- `0` keluar dari mode interaktif
+
 ### Mulai Sesi Baru
 
 ```bash
@@ -71,6 +90,9 @@ mcgg list-sessions
 # Lanjutkan sesi
 mcgg resume <session_id>
 ```
+
+Jika kamu ingin workflow cepat dalam satu command, jalankan `mcgg tui`
+lalu ikuti menu interaktif tanpa perlu mengetik command terpisah.
 
 ### Export Data
 
