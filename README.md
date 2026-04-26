@@ -22,7 +22,7 @@ pip install mcgg-analyzer
 Atau untuk development:
 
 ```bash
-git clone <repo>
+git clone https://github.com/w4nnnn/project-mcgg.git
 cd mcgg-analyzer
 pip install -e .
 ```
