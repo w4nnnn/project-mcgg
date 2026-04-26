@@ -20,6 +20,9 @@ class PredictionEngine:
     - Round ii-5: opponent = opponent of your ii-4 opponent at round ii-2
     - Round ii-6: opponent = opponent of your ii-5 opponent at round ii-3
     
+    Guided TUI flow may stop at ii-4, but ii-5/ii-6 rules are still available
+    for optional post-ii-4 prediction summaries.
+
     "First ex" (mantan pertama) = opponent at the first random player round:
     - Phase 1: round i-2
     - Phase 2+: round ii-1

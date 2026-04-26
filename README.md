@@ -46,13 +46,17 @@ Flow utama:
 4. Jika ronde bisa diprediksi, sistem menampilkan prediksi sebelum input hasil.
 5. Tekan Enter untuk lanjut input ronde, atau ketik `q` untuk keluar.
 6. Sistem menyimpan ronde dan otomatis pindah ke ronde berikutnya.
+7. Setelah ronde `ii-4` direkam, guided flow selesai otomatis.
+8. Sistem menampilkan:
+   - urutan lawan yang sudah kamu hadapi (`i-2` s.d. `ii-4`),
+   - urutan lawan prediksi berikutnya (`ii-5`, `ii-6`) jika data chain mencukupi.
 
 Prompt data chain tambahan muncul di ronde penting untuk prediksi:
 
 - `i-3`: sistem menanyakan lawan dari lawan `i-2` (mantan pertama).
 - `ii-2`: sistem menanyakan lawan dari lawan `ii-1`.
 - `ii-4`: sistem menanyakan lawan dari lawan `ii-2`.
-- Data ini digunakan untuk membantu prediksi sampai `ii-5` dan `ii-6`.
+- Data ini digunakan untuk menyiapkan ringkasan prediksi lanjutan (`ii-5` dan `ii-6`) setelah flow berhenti di `ii-4`.
 
 ### Mulai Sesi Baru
 

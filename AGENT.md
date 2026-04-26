@@ -6,8 +6,9 @@ continue implementation quickly and safely.
 ## Project summary
 
 `mcgg` is a Python CLI/TUI tool for tracking and predicting opponents in Mobile
-Legends: Magic Chess Go Go (MCGG). The current priority is the guided TUI flow
-(`mcgg tui`) that unifies session setup, prediction, and round recording.
+Legends: Magic Chess Go Go (MCGG). The current guided TUI flow (`mcgg tui`)
+unifies session setup, prediction, and round recording, then intentionally
+stops after round `ii-4` with a summary.
 
 The codebase has active user-driven behavior changes, especially in round rules
 and TUI prompts. Always verify against the local reference files in
@@ -41,6 +42,10 @@ pipeline.
 7. Chain follow-up questions (for other players) also use arrow selection and
    apply exclusion rules.
 8. Round data is saved, and the flow advances automatically.
+9. After recording `ii-4`, guided flow prints:
+   - played-opponent order (`i-2`, `i-3`, `i-4`, `ii-1`, `ii-2`, `ii-4`),
+   - next predicted order (`ii-5`, `ii-6`) when chain data is sufficient.
+10. Guided flow exits automatically after that summary.
 
 ## Round pattern rules (implemented)
 
@@ -67,6 +72,9 @@ back to recorded round data if needed.
 - `ii-4`: based on `ii-2` opponent chain at `i-4`.
 - `ii-5`: based on `ii-4` opponent chain at `ii-2`.
 - `ii-6`: based on `ii-5` opponent chain at `ii-3`.
+
+Note: `ii-5`/`ii-6` rules are still implemented for prediction output, but they
+are no longer part of an infinite guided loop.
 
 ## Data model and persistence notes
 
@@ -104,7 +112,7 @@ Main commands are:
 
 ## Testing and quality status
 
-Current automated tests pass (`pytest`), including recent additions around:
+Recent test coverage includes:
 
 - chain relation persistence,
 - `i-4` chain mapping,
@@ -116,6 +124,8 @@ When you modify prediction or guided flow, run:
 ```bash
 python -m pytest tests -v
 ```
+
+If `pytest` is unavailable locally, install dev dependencies first.
 
 ## Known active risks
 
@@ -132,8 +142,9 @@ If you continue development, start with these steps.
 
 1. Re-read `reference/informasi-mcgg.md` and reconcile any remaining rule drift
    in engine comments and README examples.
-2. Add focused tests for phase 4+ behavior to lock the `2 player + 1 monster +
+2. Add/extend tests for guided end-summary formatting and fallback message when
+   post-`ii-4` chain data is incomplete.
+3. Add focused tests for phase 4+ behavior to lock the `2 player + 1 monster +
    3 player` cycle.
-3. Add tests for TUI exclusion filters and predicted-round auto-selection to
-   prevent regressions.
-4. Optionally refactor `cli.py` guided flow into smaller units for maintainability.
+4. Optionally refactor `cli.py` guided flow helpers into smaller modules for
+   maintainability.

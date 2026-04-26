@@ -7,9 +7,6 @@ src/mcgg/engine.py
 src/mcgg/i18n.py
 src/mcgg/models.py
 src/mcgg/storage.py
-src/mcgg/tui/__init__.py
-src/mcgg/tui/app.py
-src/mcgg/tui/controller.py
 src/mcgg/ui/__init__.py
 src/mcgg/ui/forms.py
 src/mcgg/ui/panels.py
@@ -20,6 +17,6 @@ src/mcgg_analyzer.egg-info/dependency_links.txt
 src/mcgg_analyzer.egg-info/entry_points.txt
 src/mcgg_analyzer.egg-info/requires.txt
 src/mcgg_analyzer.egg-info/top_level.txt
+tests/test_cli_guided_flow.py
 tests/test_engine.py
 tests/test_storage.py
-tests/test_tui_controller.py

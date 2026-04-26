@@ -21,6 +21,8 @@ storage = SessionStorage()
 
 # Global state
 current_session: Optional[Session] = None
+GUIDED_END_ROUND = "ii-4"
+GUIDED_HISTORY_ORDER = ("i-2", "i-3", "i-4", "ii-1", "ii-2", "ii-4")
 
 
 def get_session() -> Session:
@@ -289,6 +291,69 @@ def _show_guided_round_banner(session: Session) -> None:
     console.print(f"Tipe: {'Predictable' if rn.is_predictable else 'Random'}")
 
 
+def _is_guided_flow_end(round_number: RoundNumber) -> bool:
+    """Check whether guided flow should stop at this round."""
+    return round_number.value == GUIDED_END_ROUND
+
+
+def _get_guided_history_records(session: Session) -> List[Tuple[str, str]]:
+    """Collect recorded opponents for the guided summary list."""
+    records: List[Tuple[str, str]] = []
+    ordered_records = sorted(
+        session.round_history,
+        key=lambda r: (r.phase, r.round),
+    )
+    for record in ordered_records:
+        rn_value = record.round_number.value
+        if rn_value not in GUIDED_HISTORY_ORDER:
+            continue
+        if record.opponent_type == RoundType.MONSTER:
+            continue
+        if not record.opponent:
+            continue
+        records.append((rn_value, record.opponent.name))
+    return records
+
+
+def _get_next_predicted_sequence(session: Session) -> List[Tuple[str, str]]:
+    """Generate post-ii-4 predicted opponents using prediction engine rules."""
+    predictions: List[Tuple[str, str]] = []
+    original_phase = session.current_phase
+    original_round = session.current_round
+
+    try:
+        for next_round in (5, 6):
+            session.current_round = next_round
+            pred = PredictionEngine(session).predict()
+            if pred.is_valid and pred.predicted_opponent:
+                predictions.append((f"ii-{next_round}", pred.predicted_opponent.name))
+    finally:
+        session.current_phase = original_phase
+        session.current_round = original_round
+
+    return predictions
+
+
+def _show_guided_end_summary(session: Session) -> None:
+    """Show history and next predicted sequence after ii-4."""
+    console.print("\n[bold green]Flow guided selesai di ii-4.[/bold green]")
+    console.print("[bold]Urutan lawan yang sudah dihadapi:[/bold]")
+    history_rows = _get_guided_history_records(session)
+    if history_rows:
+        for round_label, opponent_name in history_rows:
+            console.print(f"  - {round_label}: {opponent_name}")
+    else:
+        console.print("  - Belum ada data lawan.")
+
+    console.print("\n[bold]Urutan lawan prediksi berikutnya:[/bold]")
+    next_predictions = _get_next_predicted_sequence(session)
+    if next_predictions:
+        for round_label, opponent_name in next_predictions:
+            console.print(f"  - {round_label}: {opponent_name}")
+    else:
+        console.print("  - Belum cukup data untuk memprediksi urutan setelah ii-4.")
+
+
 def _run_guided_round_loop() -> None:
     """Unified guided flow: status -> predict -> input -> record."""
     while True:
@@ -348,6 +413,10 @@ def _run_guided_round_loop() -> None:
             f"[green]Tersimpan:[/green] {just_recorded.round_number.value} vs "
             f"{opponent}. Selanjutnya: {updated.current_round_number.value}"
         )
+        if _is_guided_flow_end(just_recorded.round_number):
+            _show_guided_end_summary(updated)
+            console.print("[cyan]Keluar otomatis dari mode interaktif.[/cyan]")
+            break
 
 
 @app.command()
