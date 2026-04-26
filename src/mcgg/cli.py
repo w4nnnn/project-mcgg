@@ -5,6 +5,7 @@ Main entry point for the command-line application.
 
 import typer
 from typing import Optional, List
+import msvcrt
 from rich.console import Console
 from rich.table import Table
 from rich.prompt import Prompt
@@ -110,6 +111,51 @@ def _predict_current() -> "Prediction":
     return engine.predict()
 
 
+def _select_menu_option(title: str, options: List[str], default_index: int = 0) -> int:
+    """Interactive arrow-key selector for TUI menu."""
+    index = max(0, min(default_index, len(options) - 1))
+    while True:
+        console.clear()
+        console.print("[bold cyan]MCGG Interactive Mode[/bold cyan]")
+        console.print(f"[bold]{title}[/bold]")
+        console.print("Gunakan [bold]panah atas/bawah[/bold], lalu [bold]Enter[/bold].\n")
+
+        for i, label in enumerate(options):
+            prefix = "[green]>[/green]" if i == index else " "
+            style = "bold green" if i == index else "white"
+            console.print(f"{prefix} [{style}]{label}[/{style}]")
+
+        key = msvcrt.getch()
+        if key == b"\r":
+            return index
+        if key in (b"\x00", b"\xe0"):  # Arrow/function key prefix
+            key2 = msvcrt.getch()
+            if key2 == b"H":  # Up
+                index = (index - 1) % len(options)
+            elif key2 == b"P":  # Down
+                index = (index + 1) % len(options)
+
+
+def _collect_players_for_tui() -> List[str]:
+    """Collect 7 opponents and auto-append local player 'Kamu'."""
+    console.print("\n[bold]Buat sesi baru[/bold]")
+    console.print("Isi 7 nama lawan. Nama kamu otomatis: [bold]Kamu[/bold].")
+    opponents: List[str] = []
+    while len(opponents) < 7:
+        name = Prompt.ask(f"Nama pemain #{len(opponents) + 1}").strip()
+        if not name:
+            console.print("[yellow]Nama tidak boleh kosong.[/yellow]")
+            continue
+        if name.lower() == "kamu":
+            console.print("[yellow]Nama 'Kamu' dicadangkan sebagai pemain lokal.[/yellow]")
+            continue
+        if any(existing.lower() == name.lower() for existing in opponents):
+            console.print("[yellow]Nama duplikat, masukkan nama lain.[/yellow]")
+            continue
+        opponents.append(name)
+    return ["Kamu", *opponents]
+
+
 @app.command()
 def new_session(
     player_names: List[str] = typer.Option(
@@ -199,39 +245,32 @@ def tui(
 ):
     """Mode semi-interaktif berbasis Rich prompt."""
     get_i18n().set_language(language)
-    console.print("[bold cyan]MCGG Interactive Mode[/bold cyan]")
-    console.print("Ketik nomor aksi untuk melanjutkan.")
-
+    menu_labels = [
+        "New Session",
+        "Resume Session",
+        "Record Round",
+        "Predict",
+        "Status",
+        "End Session",
+        "Exit TUI",
+    ]
     while True:
-        console.print("\n[bold]Menu[/bold]")
-        console.print("1) New Session")
-        console.print("2) Resume Session")
-        console.print("3) Record Round")
-        console.print("4) Predict")
-        console.print("5) Status")
-        console.print("6) End Session")
-        console.print("0) Exit TUI")
-
-        choice = Prompt.ask(
-            "Pilih aksi",
-            choices=["0", "1", "2", "3", "4", "5", "6"],
-            default="5",
-        )
+        choice = _select_menu_option("Menu utama", menu_labels, default_index=4)
 
         try:
-            if choice == "1":
-                names_raw = Prompt.ask("Daftar pemain (pisahkan dengan koma)")
-                player_names = [name.strip() for name in names_raw.split(",") if name.strip()]
-                your_name = Prompt.ask("Nama kamu (harus ada di daftar pemain)")
-                session = _create_session(player_names, your_name, language)
+            if choice == 0:
+                player_names = _collect_players_for_tui()
+                session = _create_session(player_names, "Kamu", language)
                 console.print(f"[green]Sesi baru dibuat:[/green] {session.id}")
                 _show_current_status()
-            elif choice == "2":
+                Prompt.ask("Tekan Enter untuk kembali ke menu", default="")
+            elif choice == 1:
                 session_id = Prompt.ask("Masukkan session ID")
                 session = _resume_session(session_id, language)
                 console.print(f"[green]Sesi dilanjutkan:[/green] {session.id}")
                 _show_current_status()
-            elif choice == "3":
+                Prompt.ask("Tekan Enter untuk kembali ke menu", default="")
+            elif choice == 2:
                 session = get_session()
                 default_opp = "monster" if session.current_round_number.is_monster_round else ""
                 opponent = Prompt.ask("Lawan (nama pemain atau 'monster')", default=default_opp)
@@ -242,19 +281,25 @@ def tui(
                 rec = updated.round_history[-1]
                 console.print(f"[green]Ronde direkam:[/green] {rec.round_number.value} vs {opponent} ({result.value})")
                 _show_current_status()
-            elif choice == "4":
+                Prompt.ask("Tekan Enter untuk kembali ke menu", default="")
+            elif choice == 3:
                 predict()
-            elif choice == "5":
+                Prompt.ask("Tekan Enter untuk kembali ke menu", default="")
+            elif choice == 4:
                 _show_current_status()
-            elif choice == "6":
+                Prompt.ask("Tekan Enter untuk kembali ke menu", default="")
+            elif choice == 5:
                 end_session()
-            elif choice == "0":
+                Prompt.ask("Tekan Enter untuk kembali ke menu", default="")
+            elif choice == 6:
                 console.print("[cyan]Keluar dari mode interaktif.[/cyan]")
                 break
         except typer.Exit:
             console.print("[red]Aksi dibatalkan karena input/state tidak valid.[/red]")
+            Prompt.ask("Tekan Enter untuk kembali ke menu", default="")
         except Exception as exc:  # pragma: no cover - safeguard for interactive loop
             console.print(f"[red]Terjadi error:[/red] {exc}")
+            Prompt.ask("Tekan Enter untuk kembali ke menu", default="")
 
 
 @app.command()
