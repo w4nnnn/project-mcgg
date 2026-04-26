@@ -5,6 +5,7 @@ Main entry point for the command-line application.
 
 import typer
 from typing import Optional, List, Tuple
+import msvcrt
 from rich.console import Console
 from rich.table import Table
 from rich.prompt import Prompt
@@ -81,7 +82,7 @@ def _resume_session(session_id: str, language: Language = Language.ID) -> Sessio
 
 def _record_round(
     opponent: str,
-    result: MatchResult,
+    result: Optional[MatchResult] = None,
     notes: Optional[str] = None,
     chain_pairs: Optional[List[Tuple[str, str]]] = None,
 ) -> Session:
@@ -102,7 +103,8 @@ def _record_round(
         session.add_player(opp_player)
 
     record = session.add_round(opp_player or Player(name="Monster"), opp_type)
-    record.result = result
+    if result is not None:
+        record.result = result
     for source_name, target_name in chain_pairs or []:
         session.set_chain_relation(record.phase, record.round, source_name, target_name)
     session.advance_round()
@@ -137,6 +139,66 @@ def _collect_players_for_tui() -> List[str]:
     return ["Kamu", *opponents]
 
 
+def _select_with_arrow(title: str, options: List[str], helper_text: str = "") -> str:
+    """Select one option using keyboard arrows."""
+    if not options:
+        raise ValueError("Options cannot be empty")
+
+    index = 0
+    while True:
+        console.clear()
+        console.print("[bold cyan]MCGG Guided TUI[/bold cyan]")
+        console.print(f"[bold]{title}[/bold]")
+        if helper_text:
+            console.print(f"[dim]{helper_text}[/dim]")
+        console.print("")
+
+        for i, option in enumerate(options):
+            marker = ">" if i == index else " "
+            style = "bold green" if i == index else "white"
+            console.print(f"{marker} [{style}]{option}[/{style}]")
+
+        key = msvcrt.getch()
+        if key == b"\r":
+            return options[index]
+        if key in (b"\x00", b"\xe0"):
+            key2 = msvcrt.getch()
+            if key2 == b"H":  # up
+                index = (index - 1) % len(options)
+            elif key2 == b"P":  # down
+                index = (index + 1) % len(options)
+
+
+def _choose_opponent_with_arrow(session: Session) -> str:
+    """Choose opponent from active non-local players using arrows."""
+    options = [
+        p.name for p in session.active_players
+        if not p.is_local_player
+    ]
+    if not options:
+        raise typer.Exit(code=1)
+    return _select_with_arrow(
+        title="Pilih lawan ronde ini",
+        options=options,
+        helper_text="Gunakan panah atas/bawah lalu Enter",
+    )
+
+
+def _choose_chain_opponent_with_arrow(session: Session, source_player: str, title: str) -> Optional[str]:
+    """Choose opponent for another player using arrows."""
+    options = [
+        p.name for p in session.active_players
+        if p.name.lower() != source_player.lower()
+    ]
+    if not options:
+        return None
+    return _select_with_arrow(
+        title=title,
+        options=options,
+        helper_text=f"Pilih lawan untuk {source_player} (panah atas/bawah + Enter)",
+    )
+
+
 def _press_enter_or_quit(message: str = "Tekan Enter untuk lanjut (atau ketik q untuk keluar TUI)") -> bool:
     """Return False when user chooses to quit."""
     action = Prompt.ask(message, default="")
@@ -156,9 +218,11 @@ def _collect_chain_pairs(session: Session, opponent: str) -> List[Tuple[str, str
     if rn.value == "i-3":
         first_ex = session.get_round_record(1, 2)
         if first_ex and first_ex.opponent:
-            mapped = Prompt.ask(
-                f"Di i-3, [bold]{first_ex.opponent.name}[/bold] melawan siapa?"
-            ).strip()
+            mapped = _choose_chain_opponent_with_arrow(
+                session=session,
+                source_player=first_ex.opponent.name,
+                title=f"Di i-3, {first_ex.opponent.name} melawan siapa?",
+            )
             if mapped:
                 pairs.append((first_ex.opponent.name, mapped))
         return pairs
@@ -171,9 +235,11 @@ def _collect_chain_pairs(session: Session, opponent: str) -> List[Tuple[str, str
         phase = session.current_phase
         first_ex = session.get_round_record(phase, 1)
         if first_ex and first_ex.opponent:
-            mapped = Prompt.ask(
-                f"Di ii-2, [bold]{first_ex.opponent.name}[/bold] melawan siapa?"
-            ).strip()
+            mapped = _choose_chain_opponent_with_arrow(
+                session=session,
+                source_player=first_ex.opponent.name,
+                title=f"Di ii-2, {first_ex.opponent.name} melawan siapa?",
+            )
             if mapped:
                 pairs.append((first_ex.opponent.name, mapped))
         return pairs
@@ -181,9 +247,11 @@ def _collect_chain_pairs(session: Session, opponent: str) -> List[Tuple[str, str
     if rn.value == "ii-4":
         ii2 = session.get_round_record(session.current_phase, 2)
         if ii2 and ii2.opponent:
-            mapped = Prompt.ask(
-                f"Di ii-4, [bold]{ii2.opponent.name}[/bold] melawan siapa?"
-            ).strip()
+            mapped = _choose_chain_opponent_with_arrow(
+                session=session,
+                source_player=ii2.opponent.name,
+                title=f"Di ii-4, {ii2.opponent.name} melawan siapa?",
+            )
             if mapped:
                 pairs.append((ii2.opponent.name, mapped))
         return pairs
@@ -216,23 +284,19 @@ def _run_guided_round_loop() -> None:
             opponent = "monster"
             console.print("[cyan]Ronde monster terdeteksi: lawan otomatis 'monster'.[/cyan]")
         else:
-            opponent = Prompt.ask("Kamu melawan siapa di ronde ini?").strip()
-            while not opponent:
-                opponent = Prompt.ask("Nama lawan tidak boleh kosong, isi lagi").strip()
+            opponent = _choose_opponent_with_arrow(session)
 
-        result_raw = Prompt.ask("Hasil ronde", choices=["win", "lose", "draw"], default="win")
-        notes = Prompt.ask("Catatan (opsional)", default="")
         chain_pairs = _collect_chain_pairs(session, opponent)
         updated = _record_round(
             opponent=opponent,
-            result=MatchResult(result_raw),
-            notes=notes or None,
+            result=None,
+            notes=None,
             chain_pairs=chain_pairs,
         )
         just_recorded = updated.round_history[-1]
         console.print(
             f"[green]Tersimpan:[/green] {just_recorded.round_number.value} vs "
-            f"{opponent} ({result_raw}). Selanjutnya: {updated.current_round_number.value}"
+            f"{opponent}. Selanjutnya: {updated.current_round_number.value}"
         )
 
 
@@ -325,11 +389,10 @@ def tui(
 ):
     """Mode interaktif terpandu berbasis alur ronde."""
     get_i18n().set_language(language)
-    console.print("[bold cyan]MCGG Guided TUI[/bold cyan]")
-    action = Prompt.ask(
-        "Pilih mode awal",
-        choices=["new", "resume", "exit"],
-        default="new",
+    action = _select_with_arrow(
+        title="Pilih mode awal",
+        options=["new", "resume", "exit"],
+        helper_text="Gunakan panah atas/bawah lalu Enter",
     )
     if action == "exit":
         console.print("[cyan]Keluar dari mode interaktif.[/cyan]")
