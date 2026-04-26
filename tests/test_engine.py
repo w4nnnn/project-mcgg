@@ -131,6 +131,21 @@ class TestPredictionEngine:
         assert pred.predicted_opponent is not None
         assert pred.predicted_opponent.name == "Bob"
 
+    def test_ii2_uses_i2_first_ex_chain_at_ii1(self):
+        """Predict ii-2 from i-2 first-ex mapping at ii-1."""
+        self.session.current_phase = 1
+        self.session.current_round = 2
+        self.session.add_round(self.alice)  # i-2 first ex
+        self.session.current_phase = 2
+        self.session.current_round = 2
+        self.session.set_chain_relation(2, 1, "Alice", "Charlie")
+
+        engine = PredictionEngine(self.session)
+        pred = engine.predict()
+        assert pred.is_valid
+        assert pred.predicted_opponent is not None
+        assert pred.predicted_opponent.name == "Charlie"
+
 
 class TestSessionModel:
     """Test cases for Session model."""

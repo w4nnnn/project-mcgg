@@ -251,20 +251,20 @@ def _collect_chain_pairs(session: Session, opponent: str) -> List[Tuple[str, str
 
     if rn.value == "ii-1":
         pairs.append(("Kamu", opponent))
-        return pairs
-
-    if rn.value == "ii-2":
-        phase = session.current_phase
-        first_ex = session.get_round_record(phase, 1)
+        first_ex = session.get_round_record(1, 2)
         if first_ex and first_ex.opponent:
             mapped = _choose_chain_opponent_with_arrow(
                 session=session,
                 source_player=first_ex.opponent.name,
-                title=f"Di ii-2, {first_ex.opponent.name} melawan siapa?",
+                title=f"Di ii-1, {first_ex.opponent.name} melawan siapa?",
                 excluded_name=opponent,
             )
             if mapped:
                 pairs.append((first_ex.opponent.name, mapped))
+        return pairs
+
+    if rn.value == "ii-2":
+        # Data chain utama untuk prediksi ii-2 sudah dikumpulkan di ronde ii-1.
         return pairs
 
     if rn.value == "ii-4":

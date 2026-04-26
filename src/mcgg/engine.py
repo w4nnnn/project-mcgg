@@ -15,7 +15,7 @@ class PredictionEngine:
     The MCGG matchmaking system uses a chain-based prediction where:
     - Rounds i-2, i-3, ii-1 are RANDOM (cannot predict)
     - Round i-4: opponent = opponent of your "first ex" at round i-3
-    - Round ii-2: opponent = opponent of your "first ex" at round ii-1  
+    - Round ii-2: opponent = opponent of your phase-1 "first ex" at round ii-1
     - Round ii-4: opponent = opponent of your ii-2 opponent at round i-4
     - Round ii-5: opponent = opponent of your ii-4 opponent at round ii-2
     - Round ii-6: opponent = opponent of your ii-5 opponent at round ii-3
@@ -108,17 +108,17 @@ class PredictionEngine:
     def _predict_ii2(self) -> Prediction:
         """Predict round ii-2.
         
-        Rule: Your opponent at ii-2 is the opponent that your "first ex" 
-        (opponent at ii-1) faced at round ii-1.
+        Rule: Your opponent at ii-2 is the opponent that your phase-1 "first ex"
+        (opponent at i-2) faced at round ii-1.
         
-        Chain: You → first_ex (ii-1) → first_ex's_ii1_opponent
+        Chain: You → first_ex (i-2) → first_ex's_ii1_opponent
         """
-        first_ex = self._get_first_ex_phase2()
+        first_ex = self._get_first_ex()
         if not first_ex:
             return Prediction(
                 predicted_opponent=None, confidence=0.0,
                 prediction_method="ii2_no_first_ex", is_valid=False,
-                warnings=["No 'first ex' for phase 2 found - need round ii-1 data"]
+                warnings=["No phase-1 'first ex' found - need round i-2 data"]
             )
         
         mapped_name = self.session.get_chain_opponent(
@@ -135,11 +135,11 @@ class PredictionEngine:
             return Prediction(
                 predicted_opponent=None, confidence=0.0,
                 prediction_method="ii2_no_ii1_history", is_valid=False,
-                warnings=["No data for round ii-1 - cannot chain predict"]
+                warnings=["No chain data for first ex at round ii-1 - cannot predict ii-2"]
             )
 
         confidence = self._calculate_confidence()
-        chain = f"You → {first_ex.name} (ii-1) → {predicted.name} (ii-1)"
+        chain = f"You → {first_ex.name} (i-2) → {predicted.name} (ii-1)"
         
         return Prediction(
             predicted_opponent=predicted,

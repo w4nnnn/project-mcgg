@@ -55,6 +55,36 @@ class RoundNumber(Enum):
     P3_R4 = "iii-4"
     P3_R5 = "iii-5"
     P3_R6 = "iii-6"
+    P4_R1 = "iv-1"
+    P4_R2 = "iv-2"
+    P4_R3 = "iv-3"
+    P4_R4 = "iv-4"
+    P4_R5 = "iv-5"
+    P4_R6 = "iv-6"
+    P5_R1 = "v-1"
+    P5_R2 = "v-2"
+    P5_R3 = "v-3"
+    P5_R4 = "v-4"
+    P5_R5 = "v-5"
+    P5_R6 = "v-6"
+    P6_R1 = "vi-1"
+    P6_R2 = "vi-2"
+    P6_R3 = "vi-3"
+    P6_R4 = "vi-4"
+    P6_R5 = "vi-5"
+    P6_R6 = "vi-6"
+    P7_R1 = "vii-1"
+    P7_R2 = "vii-2"
+    P7_R3 = "vii-3"
+    P7_R4 = "vii-4"
+    P7_R5 = "vii-5"
+    P7_R6 = "vii-6"
+    P8_R1 = "viii-1"
+    P8_R2 = "viii-2"
+    P8_R3 = "viii-3"
+    P8_R4 = "viii-4"
+    P8_R5 = "viii-5"
+    P8_R6 = "viii-6"
 
     @property
     def phase(self) -> int:
@@ -74,22 +104,16 @@ class RoundNumber(Enum):
     @property
     def is_predictable(self) -> bool:
         """Check if this round is predictable."""
-        predictable_rounds = {
-            RoundNumber.P1_R4,
-            RoundNumber.P2_R2, RoundNumber.P2_R4, RoundNumber.P2_R5, RoundNumber.P2_R6,
-            RoundNumber.P3_R2, RoundNumber.P3_R4, RoundNumber.P3_R5, RoundNumber.P3_R6,
-        }
-        return self in predictable_rounds
+        if self.phase == 1:
+            return self.round_within_phase == 4
+        return self.round_within_phase in (2, 4, 5, 6)
 
     @property
     def is_monster_round(self) -> bool:
         """Check if this round involves a monster."""
-        monster_rounds = {
-            RoundNumber.P1_R1,
-            RoundNumber.P2_R3,
-            RoundNumber.P3_R3,
-        }
-        return self in monster_rounds
+        if self.phase == 1:
+            return self.round_within_phase == 1
+        return self.round_within_phase == 3
 
     @classmethod
     def from_phase_and_round(cls, phase: int, round_num: int) -> RoundNumber:
@@ -103,7 +127,15 @@ class RoundNumber(Enum):
         if phase == 1 and round_num == 4:
             return cls.P1_R4
 
-        roman_phase = {2: "ii", 3: "iii", 4: "iv", 5: "v", 6: "vi"}
+        roman_phase = {
+            2: "ii",
+            3: "iii",
+            4: "iv",
+            5: "v",
+            6: "vi",
+            7: "vii",
+            8: "viii",
+        }
         roman = roman_phase.get(phase, f"phase_{phase}")
         return cls(f"{roman}-{round_num}")
 

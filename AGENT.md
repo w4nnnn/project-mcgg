@@ -1,212 +1,139 @@
-# MCGG Matchmaking Analyzer - Agent Documentation
+# MCGG Matchmaking Analyzer - agent handoff summary
 
-## Project Overview
+This document gives you the current technical state of the project so you can
+continue implementation quickly and safely.
 
-**MCGG Matchmaking Analyzer** adalah tool CLI/TUI untuk menganalisis dan memprediksi matchmaking dalam game Mobile Legends: Magic Chess Go Go (MCGG).
+## Project summary
 
-**Location**: `/home/w4nn/workbrench/project-mcgg/`
+`mcgg` is a Python CLI/TUI tool for tracking and predicting opponents in Mobile
+Legends: Magic Chess Go Go (MCGG). The current priority is the guided TUI flow
+(`mcgg tui`) that unifies session setup, prediction, and round recording.
 
-## Game Rules Summary
+The codebase has active user-driven behavior changes, especially in round rules
+and TUI prompts. Always verify against the local reference files in
+`reference/`.
 
-MCGG adalah game battle royale dengan 8 pemain:
+## Current architecture
 
-- Setiap ronde, pemain fight melawan player lain atau monster
-- HP habis = eliminated (tusun)
-- Pemain terakhir = winner
-- 8 → 7 → 6 → ... → 1
+The project uses a thin interface layer and a shared domain core.
 
-### Fase & Ronde
+- **Interface layer**: `src/mcgg/cli.py` (Typer + Rich guided flow).
+- **Domain models**: `src/mcgg/models.py` (`Session`, `RoundRecord`, `Player`,
+  `Prediction`, and `RoundNumber`).
+- **Prediction logic**: `src/mcgg/engine.py` (`PredictionEngine`).
+- **Persistence**: `src/mcgg/storage.py` (`SessionStorage`, JSON persistence,
+  CSV/JSON export).
+- **Entry point**: `src/mcgg/__main__.py` imports `mcgg.cli`.
 
-| Fase | Ronde | Tipe | Predictable |
-|------|-------|------|-------------|
-| I | i-1 | Monster | ❌ |
-| I | i-2 | Player | ❌ (Random) |
-| I | i-3 | Player | ❌ (Random) |
-| I | i-4 | Player | ✅ Chain |
-| II+ | ii-1 | Player | ❌ (Random) |
-| II+ | ii-2 | Player | ✅ Chain |
-| II+ | ii-3 | Monster | ❌ |
-| II+ | ii-4 | Player | ✅ Chain |
-| II+ | ii-5 | Player | ✅ Chain |
-| II+ | ii-6 | Player | ✅ Chain |
+## Guided TUI behavior (current)
 
-### Chain Prediction Rules
+The `tui` command is no longer a generic command menu. It is a guided round
+pipeline.
 
-- **Mantan Pertama (First Ex)**: Lawan di ronde random pertama phase tersebut
-  - Phase 1: lawan di i-2
-  - Phase 2+: lawan di ii-1
+1. You choose mode with arrow input: `new`, `resume`, or `exit`.
+2. For `new`, you input 7 opponents one by one, and local player is auto-set to
+   `Kamu`.
+3. Each round shows status and round type.
+4. Predictable rounds run prediction first.
+5. If prediction is valid, the predicted opponent is auto-used (no repeated
+   opponent question).
+6. Non-predictable player rounds use arrow-based opponent selection.
+7. Chain follow-up questions (for other players) also use arrow selection and
+   apply exclusion rules.
+8. Round data is saved, and the flow advances automatically.
 
-- **Chain untuk i-4**: `You → FirstEx (i-2) → FirstEx's opponent at i-3`
-- **Chain untuk ii-2**: `You → FirstEx (ii-1) → FirstEx's opponent at ii-1`
-- **Chain untuk ii-4**: `You → ii-2 opponent → ii-2's opponent at i-4`
-- **Chain untuk ii-5**: `You → ii-4 opponent → ii-4's opponent at ii-2`
-- **Chain untuk ii-6**: `You → ii-5 opponent → ii-5's opponent at ii-3`
+## Round pattern rules (implemented)
 
-### Confidence Scoring
+Current round type pattern in `RoundNumber` is:
 
-- Base: 95% saat semua 8 pemain aktif
-- Setiap eliminasi: -10%
-- Minimum: 30%
+- **Phase 1**: `i-1` monster, `i-2` player, `i-3` player, `i-4` player.
+- **Phase 2+**: always `player, player, monster, player, player, player`.
 
-## Tech Stack
+This is implemented through dynamic properties:
 
-- **Python**: 3.9+
-- **CLI Framework**: [Typer](https://typer.tiangolo.com/) (CLI commands)
-- **UI**: [Rich](https://rich.readthedocs.io/) (styled terminal output)
-- **Data Validation**: Pydantic models
-- **Storage**: JSON (1 file per session, di `~/.mcgg/data/`)
-- **Testing**: pytest
+- `is_monster_round`: phase 1 -> round 1, phase 2+ -> round 3.
+- `is_predictable`: phase 1 -> round 4, phase 2+ -> rounds 2, 4, 5, 6.
 
-## Project Structure
+`RoundNumber` currently supports roman phases up to `viii` (phase 8).
 
-```
-mcgg-analyzer/
-├── src/mcgg/
-│   ├── __init__.py          # Package init, version
-│   ├── __main__.py          # Entry point (python -m mcgg)
-│   ├── cli.py               # Typer app, all commands
-│   ├── models.py            # Domain models (Player, Session, RoundRecord, Prediction)
-│   ├── engine.py            # PredictionEngine, chain logic
-│   ├── storage.py           # SessionStorage, Exporter (CSV/JSON)
-│   ├── i18n.py              # Internationalization (EN/ID)
-│   └── ui/                  # Rich UI components
-│       ├── panels.py        # Reusable panels (phase_indicator, prediction, etc)
-│       ├── tables.py        # Table formatters
-│       └── forms.py         # Input prompts
-├── tests/
-│   ├── test_engine.py       # Engine + model tests (16 tests)
-│   └── test_storage.py      # Storage tests
-├── pyproject.toml           # Package config, dependencies
-└── README.md                # User documentation
-```
+## Chain prediction rules (current engine state)
 
-## Key Models
+`PredictionEngine` currently uses `Session.chain_relations` first, then falls
+back to recorded round data if needed.
 
-### Player
-```python
-Player(id, name, position, is_active, is_local_player)
-```
+- `i-4`: `You -> first_ex(i-2) -> first_ex opponent at i-3`.
+- `ii-2`: updated per latest request:
+  `You -> first_ex(i-2) -> first_ex opponent at ii-1`.
+- `ii-4`: based on `ii-2` opponent chain at `i-4`.
+- `ii-5`: based on `ii-4` opponent chain at `ii-2`.
+- `ii-6`: based on `ii-5` opponent chain at `ii-3`.
 
-### Session
-```python
-Session(id, started_at, updated_at, ended_at, players, round_history,
-        current_phase, current_round, is_active, winner)
-```
-Methods: `add_player()`, `get_player_by_name()`, `advance_round()`, `get_round_record()`, `get_first_ex()`
+## Data model and persistence notes
 
-### RoundRecord
-```python
-RoundRecord(round_number, phase, round, opponent, opponent_type, result, timestamp)
-```
+`Session` includes:
 
-### Prediction
-```python
-Prediction(predicted_opponent, confidence, based_on_round, prediction_method,
-           is_valid, chain_description, warnings)
-```
+- `players`
+- `round_history`
+- `current_phase` and `current_round`
+- `chain_relations: dict[str, str]`
 
-### RoundNumber (Enum)
-```
-P1_R1='i-1', P1_R2='i-2', ..., P2_R1='ii-1', ...
-```
-Properties: `is_predictable`, `is_monster_round`, `phase`, `round_within_phase`
+Chain keys use the format: `"{phase}-{round}:{source_player_lower}"`.
 
-## CLI Commands
+`SessionStorage` already persists and restores `chain_relations`, so guided TUI
+sessions remain resumable with chain context.
 
-| Command | Description |
-|---------|-------------|
-| `new-session` | Mulai sesi baru (--player, --you flags) |
-| `resume` | Lanjutkan sesi (argument: session_id) |
-| `record` | Rekam hasil match (argument: opponent, --result) |
-| `predict` | Prediksi lawan接下来对手 |
-| `status` | Show current phase/round |
-| `history` | Show round history table |
-| `players` | Show player list |
-| `end-session` | End current session |
-| `list-sessions` | Show all saved sessions |
-| `export-csv` | Export to CSV (--path) |
-| `export-json` | Export to JSON (--path) |
-| `import-json` | Import from JSON |
+## TUI selection/exclusion behavior (important)
 
-## Important Conventions
+The guided flow intentionally filters options to reduce repeated prompts.
 
-### 1. Import Path
-When running as package (`pip install -e .`), imports use `mcgg` not `src.mcgg`:
-```python
-from mcgg.models import Session  # ✅
-from src.mcgg.models import Session  # ❌
-```
+- Main opponent picker excludes your previous opponent when possible.
+- Chain picker excludes:
+  - local player (`Kamu`),
+  - source player itself,
+  - your current opponent in that round (if provided).
 
-### 2. Round Advancement
-- Phase 1: max 4 rounds (i-1 to i-4)
-- Phase 2+: max 6 rounds (ii-1 to ii-6)
-- After max, phase increments and round resets to 1
+This behavior was explicitly requested and is part of current expected UX.
 
-### 3. Session State
-- Current session stored in global `current_session` variable in `cli.py`
-- Auto-saved to JSON after each `record` command
-- Storage location: `~/.mcgg/data/session_{id}.json`
+## Command overview
 
-### 4. Player Name Lookup
-`session.get_player_by_name()` is case-insensitive
+Main commands are:
 
-### 5. Language
-- Default: Indonesian (ID)
-- CLI flag: `--lang id` or `--lang en`
-- Global i18n instance via `get_i18n()`
+- `new-session`, `resume`, `record`, `predict`, `status`, `history`, `players`
+- `end-session`, `list-sessions`, `export-csv`, `export-json`, `import-json`
+- `tui` (primary guided flow)
 
-## Running the App
+## Testing and quality status
+
+Current automated tests pass (`pytest`), including recent additions around:
+
+- chain relation persistence,
+- `i-4` chain mapping,
+- updated `ii-2` rule using phase-1 first ex chain at `ii-1`,
+- `ii-5` chain mapping.
+
+When you modify prediction or guided flow, run:
 
 ```bash
-# Development
-cd /home/w4nn/workbrench/project-mcgg
-.venv/bin/python -m mcgg <command>
-
-# Or install globally
-pip install -e .
-mcgg <command>
-
-# Run tests
-.venv/bin/python -m pytest tests/ -v
+python -m pytest tests -v
 ```
 
-## Known Limitations
+## Known active risks
 
-1. **Chain prediction requires opponent's match data**: You can only predict if you know what your opponents faced in previous rounds. This tool assumes you're tracking all matches in the session.
+The code is evolving quickly around user-specific rules. Keep these risks in
+mind.
 
-2. **Prediction accuracy degrades with eliminations**: When players are eliminated, the chain-based prediction becomes less reliable.
+- Reference docs may conflict with older assumptions in comments or README.
+- Guided UX and prediction rules are tightly coupled; update both together.
+- Exclusion-heavy selectors can run out of options; preserve fallback behavior.
 
-3. **Phase 2+ first ex**: The "first ex" concept resets at each new phase (ii-1, iii-1, etc).
+## Recommended next steps for the next agent
 
-## Future Considerations (TUI Conversion)
+If you continue development, start with these steps.
 
-If converting to TUI:
-
-- **Recommended library**: Textual (from Rich creator)
-- Keep existing models, engine, storage unchanged
-- Replace `cli.py` with Textual App
-- Move `current_session` to app state
-- Reuse Rich panels in Textual widgets
-- Consider async for periodic auto-save
-
-## Quick Start for New Session
-
-```bash
-mcgg new-session --player You --player Alice --player Bob --player Charlie --you You
-mcgg record monster --result win        # i-1 (monster, optional to record)
-mcgg record Alice --result win          # i-2 (random)
-mcgg record Bob --result lose          # i-3 (random)
-mcgg predict                          # i-4 - predicts opponent
-mcgg record <predicted> --result win    # record actual opponent
-mcgg history
-```
-
-## File Locations
-
-| Purpose | Path |
-|---------|------|
-| Project root | `/home/w4nn/workbrench/project-mcgg/` |
-| Source code | `src/mcgg/` |
-| Sessions | `~/.mcgg/data/` |
-| Plans | `.hermes/plans/` |
-| Venv | `.venv/` |
+1. Re-read `reference/informasi-mcgg.md` and reconcile any remaining rule drift
+   in engine comments and README examples.
+2. Add focused tests for phase 4+ behavior to lock the `2 player + 1 monster +
+   3 player` cycle.
+3. Add tests for TUI exclusion filters and predicted-round auto-selection to
+   prevent regressions.
+4. Optionally refactor `cli.py` guided flow into smaller units for maintainability.

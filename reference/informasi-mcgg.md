@@ -46,12 +46,12 @@ Berdasarkan dokumentasi :
 
 * Pola sama seperti Phase 2:
 
-  * Player
-  * Player
-  * Monster
-  * Player
-  * Player
-  * Player
+  iii-1 Player
+  iii-2 Player
+  iii-3 Monster
+  iii-4 Player
+  iii-5 Player
+  iii-6 Player
 
 ---
 
@@ -97,7 +97,7 @@ Menggunakan hubungan antar lawan (chain)
 
 5. Ronde ii-2:
 
-   * Lawan adalah lawan dari mantan pertama di ronde ii-1
+   * Lawan adalah lawan dari mantan pertama (i-3) di ronde ii-1
 
 6. Ronde ii-4:
 
