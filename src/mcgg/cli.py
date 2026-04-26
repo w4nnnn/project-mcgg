@@ -171,10 +171,21 @@ def _select_with_arrow(title: str, options: List[str], helper_text: str = "") ->
 
 def _choose_opponent_with_arrow(session: Session) -> str:
     """Choose opponent from active non-local players using arrows."""
+    excluded_names = set()
+    previous = session.get_previous_opponent()
+    if previous and previous.name:
+        excluded_names.add(previous.name.lower())
+
     options = [
         p.name for p in session.active_players
-        if not p.is_local_player
+        if not p.is_local_player and p.name.lower() not in excluded_names
     ]
+    if not options:
+        # Fallback when only previous opponent remains available.
+        options = [
+            p.name for p in session.active_players
+            if not p.is_local_player
+        ]
     if not options:
         raise typer.Exit(code=1)
     return _select_with_arrow(
@@ -184,11 +195,21 @@ def _choose_opponent_with_arrow(session: Session) -> str:
     )
 
 
-def _choose_chain_opponent_with_arrow(session: Session, source_player: str, title: str) -> Optional[str]:
+def _choose_chain_opponent_with_arrow(
+    session: Session,
+    source_player: str,
+    title: str,
+    excluded_name: Optional[str] = None,
+) -> Optional[str]:
     """Choose opponent for another player using arrows."""
+    excluded = excluded_name.lower() if excluded_name else ""
     options = [
         p.name for p in session.active_players
-        if p.name.lower() != source_player.lower()
+        if (
+            p.name.lower() != source_player.lower()
+            and not p.is_local_player
+            and p.name.lower() != excluded
+        )
     ]
     if not options:
         return None
@@ -222,6 +243,7 @@ def _collect_chain_pairs(session: Session, opponent: str) -> List[Tuple[str, str
                 session=session,
                 source_player=first_ex.opponent.name,
                 title=f"Di i-3, {first_ex.opponent.name} melawan siapa?",
+                excluded_name=opponent,
             )
             if mapped:
                 pairs.append((first_ex.opponent.name, mapped))
@@ -239,6 +261,7 @@ def _collect_chain_pairs(session: Session, opponent: str) -> List[Tuple[str, str
                 session=session,
                 source_player=first_ex.opponent.name,
                 title=f"Di ii-2, {first_ex.opponent.name} melawan siapa?",
+                excluded_name=opponent,
             )
             if mapped:
                 pairs.append((first_ex.opponent.name, mapped))
@@ -251,6 +274,7 @@ def _collect_chain_pairs(session: Session, opponent: str) -> List[Tuple[str, str
                 session=session,
                 source_player=ii2.opponent.name,
                 title=f"Di ii-4, {ii2.opponent.name} melawan siapa?",
+                excluded_name=opponent,
             )
             if mapped:
                 pairs.append((ii2.opponent.name, mapped))
@@ -271,9 +295,29 @@ def _run_guided_round_loop() -> None:
         session = get_session()
         _show_current_status()
         _show_guided_round_banner(session)
+        predicted_opponent_name: Optional[str] = None
 
         if session.current_round_number.is_predictable:
-            predict()
+            pred = _predict_current()
+            rn = session.current_round_number
+            console.print(f"\n[bold]Prediksi untuk {rn.value}:[/bold]")
+            if pred.is_valid and pred.predicted_opponent:
+                predicted_opponent_name = pred.predicted_opponent.name
+                console.print(
+                    f"  [green]Lawan diprediksi:[/green] "
+                    f"[bold]{predicted_opponent_name}[/bold]"
+                )
+                console.print("  [cyan]Lawan otomatis dipakai dari hasil prediksi.[/cyan]")
+                console.print(f"  [yellow]Confidence:[/yellow] {pred.confidence:.0%}")
+                if pred.chain_description:
+                    console.print(f"  [cyan]Chain:[/cyan] {pred.chain_description}")
+                if pred.warnings:
+                    for w in pred.warnings:
+                        console.print(f"  [red]Warning:[/red] {w}")
+            else:
+                console.print("  [red]Prediksi tidak valid, akan minta input manual.[/red]")
+                for w in pred.warnings:
+                    console.print(f"  [yellow]Note:[/yellow] {w}")
 
         if not _press_enter_or_quit():
             console.print("[cyan]Sesi tersimpan. Keluar dari mode interaktif.[/cyan]")
@@ -283,6 +327,12 @@ def _run_guided_round_loop() -> None:
         if round_number.is_monster_round:
             opponent = "monster"
             console.print("[cyan]Ronde monster terdeteksi: lawan otomatis 'monster'.[/cyan]")
+        elif predicted_opponent_name:
+            opponent = predicted_opponent_name
+            console.print(
+                f"[cyan]Ronde prediksi: lawan otomatis '{opponent}' "
+                "(tanpa pertanyaan ulang).[/cyan]"
+            )
         else:
             opponent = _choose_opponent_with_arrow(session)
 
