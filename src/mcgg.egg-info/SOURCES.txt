@@ -1,0 +1,9 @@
+README.md
+pyproject.toml
+src/mcgg/__init__.py
+src/mcgg/__main__.py
+src/mcgg.egg-info/PKG-INFO
+src/mcgg.egg-info/SOURCES.txt
+src/mcgg.egg-info/dependency_links.txt
+src/mcgg.egg-info/requires.txt
+src/mcgg.egg-info/top_level.txt

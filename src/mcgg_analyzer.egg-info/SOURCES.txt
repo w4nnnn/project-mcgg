@@ -1,0 +1,15 @@
+README.md
+pyproject.toml
+src/mcgg/__init__.py
+src/mcgg/__main__.py
+src/mcgg/cli.py
+src/mcgg/engine.py
+src/mcgg/i18n.py
+src/mcgg/models.py
+src/mcgg/storage.py
+src/mcgg_analyzer.egg-info/PKG-INFO
+src/mcgg_analyzer.egg-info/SOURCES.txt
+src/mcgg_analyzer.egg-info/dependency_links.txt
+src/mcgg_analyzer.egg-info/entry_points.txt
+src/mcgg_analyzer.egg-info/requires.txt
+src/mcgg_analyzer.egg-info/top_level.txt
