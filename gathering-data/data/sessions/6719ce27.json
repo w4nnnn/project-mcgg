@@ -1,0 +1,98 @@
+{
+  "id": "6719ce27",
+  "players": [
+    "A",
+    "B",
+    "C",
+    "D",
+    "E",
+    "F",
+    "G",
+    "H"
+  ],
+  "phase": 1,
+  "round_no": 4,
+  "matches": [
+    {
+      "round_label": "i-2",
+      "phase": 1,
+      "round_no": 2,
+      "player1": "A",
+      "player2": "B",
+      "recorded_at": "2026-04-27T15:07:33.898031+00:00"
+    },
+    {
+      "round_label": "i-2",
+      "phase": 1,
+      "round_no": 2,
+      "player1": "C",
+      "player2": "D",
+      "recorded_at": "2026-04-27T15:07:33.898031+00:00"
+    },
+    {
+      "round_label": "i-2",
+      "phase": 1,
+      "round_no": 2,
+      "player1": "E",
+      "player2": "F",
+      "recorded_at": "2026-04-27T15:07:33.898031+00:00"
+    },
+    {
+      "round_label": "i-2",
+      "phase": 1,
+      "round_no": 2,
+      "player1": "G",
+      "player2": "H",
+      "recorded_at": "2026-04-27T15:07:33.898031+00:00"
+    },
+    {
+      "round_label": "i-3",
+      "phase": 1,
+      "round_no": 3,
+      "player1": "B",
+      "player2": "F",
+      "recorded_at": "2026-04-27T15:07:50.610530+00:00"
+    },
+    {
+      "round_label": "i-3",
+      "phase": 1,
+      "round_no": 3,
+      "player1": "C",
+      "player2": "A",
+      "recorded_at": "2026-04-27T15:07:50.610530+00:00"
+    },
+    {
+      "round_label": "i-3",
+      "phase": 1,
+      "round_no": 3,
+      "player1": "G",
+      "player2": "E",
+      "recorded_at": "2026-04-27T15:07:50.610530+00:00"
+    },
+    {
+      "round_label": "i-3",
+      "phase": 1,
+      "round_no": 3,
+      "player1": "H",
+      "player2": "D",
+      "recorded_at": "2026-04-27T15:07:50.610530+00:00"
+    }
+  ],
+  "created_at": "2026-04-27T15:07:13.007931+00:00",
+  "updated_at": "2026-04-27T15:07:54.575564+00:00",
+  "ended_at": "2026-04-27T15:07:54.575564+00:00",
+  "is_finished": true,
+  "report": {
+    "summary": {
+      "session_id": "6719ce27",
+      "total_rounds_recorded": 2,
+      "total_matches_recorded": 8,
+      "confidence": "high"
+    },
+    "frequent_matchups": [],
+    "anomalies": {
+      "repeated_consecutive_opponents": [],
+      "active_player_warnings": []
+    }
+  }
+}

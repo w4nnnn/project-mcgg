@@ -21,7 +21,7 @@ storage = SessionStorage()
 
 # Global state
 current_session: Optional[Session] = None
-GUIDED_END_ROUND = "ii-4"
+GUIDED_END_ROUND = "ii-2"
 GUIDED_HISTORY_ORDER = ("i-2", "i-3", "i-4", "ii-1", "ii-2", "ii-4")
 
 
@@ -315,43 +315,43 @@ def _get_guided_history_records(session: Session) -> List[Tuple[str, str]]:
     return records
 
 
-def _get_next_predicted_sequence(session: Session) -> List[Tuple[str, str]]:
-    """Generate post-ii-4 predicted opponents using prediction engine rules."""
-    predictions: List[Tuple[str, str]] = []
+def _predict_ii4_for_summary(session: Session) -> Optional[str]:
+    """Predict ii-4 opponent for summary output."""
     original_phase = session.current_phase
     original_round = session.current_round
 
     try:
-        for next_round in (5, 6):
-            session.current_round = next_round
-            pred = PredictionEngine(session).predict()
-            if pred.is_valid and pred.predicted_opponent:
-                predictions.append((f"ii-{next_round}", pred.predicted_opponent.name))
+        session.current_phase = 2
+        session.current_round = 4
+        pred = PredictionEngine(session).predict()
+        if pred.is_valid and pred.predicted_opponent:
+            return pred.predicted_opponent.name
     finally:
         session.current_phase = original_phase
         session.current_round = original_round
 
-    return predictions
+    return None
+
+
+def _get_opponent_sequence_until_ii4(session: Session) -> List[Tuple[str, str]]:
+    """Collect opponent sequence i-2..ii-4 without monster rounds."""
+    rows = [row for row in _get_guided_history_records(session) if row[0] != "ii-4"]
+    predicted_ii4 = _predict_ii4_for_summary(session)
+    if predicted_ii4:
+        rows.append(("ii-4 (predict)", predicted_ii4))
+    return rows
 
 
 def _show_guided_end_summary(session: Session) -> None:
-    """Show history and next predicted sequence after ii-4."""
-    console.print("\n[bold green]Flow guided selesai di ii-4.[/bold green]")
-    console.print("[bold]Urutan lawan yang sudah dihadapi:[/bold]")
-    history_rows = _get_guided_history_records(session)
-    if history_rows:
-        for round_label, opponent_name in history_rows:
+    """Show single opponent list from i-2 until ii-4 prediction."""
+    console.print("\n[bold green]Flow guided selesai di ii-2.[/bold green]")
+    console.print("[bold]List lawan i-2 sampai ii-4 (tanpa monster):[/bold]")
+    sequence_rows = _get_opponent_sequence_until_ii4(session)
+    if sequence_rows:
+        for round_label, opponent_name in sequence_rows:
             console.print(f"  - {round_label}: {opponent_name}")
     else:
-        console.print("  - Belum ada data lawan.")
-
-    console.print("\n[bold]Urutan lawan prediksi berikutnya:[/bold]")
-    next_predictions = _get_next_predicted_sequence(session)
-    if next_predictions:
-        for round_label, opponent_name in next_predictions:
-            console.print(f"  - {round_label}: {opponent_name}")
-    else:
-        console.print("  - Belum cukup data untuk memprediksi urutan setelah ii-4.")
+        console.print("  - Belum cukup data untuk menyusun list lawan.")
 
 
 def _run_guided_round_loop() -> None:

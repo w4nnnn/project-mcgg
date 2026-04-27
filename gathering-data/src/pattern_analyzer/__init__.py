@@ -1,0 +1,2 @@
+"""MCGG gathering-data package."""
+

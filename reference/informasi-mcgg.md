@@ -46,12 +46,12 @@ Berdasarkan dokumentasi :
 
 * Pola sama seperti Phase 2:
 
-  iii-1 Player
-  iii-2 Player
-  iii-3 Monster
-  iii-4 Player
-  iii-5 Player
-  iii-6 Player
+*  iii-1 Player
+*  iii-2 Player
+*  iii-3 Monster
+*  iii-4 Player
+*  iii-5 Player
+*  iii-6 Player
 
 ---
 

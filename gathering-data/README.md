@@ -1,0 +1,29 @@
+# MCGG Gathering Data
+
+Project baru untuk mencatat matchup 8 pemain via TUI interaktif (satu perintah), skip ronde monster otomatis, simpan tiap match ke JSON, dan menghasilkan analisis setelah sesi selesai.
+
+## Jalankan
+
+```bash
+cd gathering-data
+python -m pattern_analyzer tui
+```
+
+Atau setelah install editable:
+
+```bash
+pip install -e .
+mcgg-data tui
+```
+
+## Perintah
+
+- `tui`: mulai sesi baru interaktif.
+- `resume`: lanjutkan sesi berdasarkan ID.
+- `report`: tampilkan analisis dari file sesi JSON.
+
+## Catatan ronde
+
+- Ronde monster (`i-1`, `ii-3`, `iii-3`, dst.) auto-skip.
+- Input hanya untuk ronde player (`i-2`, `i-3`, `i-4`, `ii-1`, `ii-2`, `ii-4`, `ii-5`, `ii-6`, dst.).
+- Satu ronde player wajib berisi 4 pairing untuk 8 pemain unik.
