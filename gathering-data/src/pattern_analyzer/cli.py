@@ -96,14 +96,16 @@ def _collect_round_pairs(
     pairs: list[str] = []
     pair_no = 1
     while len(remaining) >= 2:
+        pair_template = f"Pair #{pair_no} = ?:?"
         p1 = chooser(
-            f"Pair #{pair_no} - pilih pemain pertama",
+            f"{pair_template}\nPilih pemain pertama",
             remaining,
             "Gunakan arrow up/down + Enter",
         )
         options_p2 = [name for name in remaining if name.lower() != p1.lower()]
+        pair_template = f"Pair #{pair_no} = {p1}:?"
         p2 = chooser(
-            f"Pair #{pair_no} - pilih lawan untuk {p1}",
+            f"{pair_template}\nPilih lawan untuk {p1}",
             options_p2,
             "Gunakan arrow up/down + Enter",
         )
