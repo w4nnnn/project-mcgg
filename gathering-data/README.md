@@ -1,29 +1,41 @@
-# MCGG Gathering Data
+# MCGG Gathering Data (GUI Tkinter)
 
-Project baru untuk mencatat matchup 8 pemain via TUI interaktif (satu perintah), skip ronde monster otomatis, simpan tiap match ke JSON, dan menghasilkan analisis setelah sesi selesai.
+Aplikasi GUI untuk:
+- Buat sesi baru
+- Lihat daftar sesi lama
+- Buka ulang sesi
+- Edit/hapus sesi
+- Input pairing ronde via dropdown
 
-## Jalankan
+## Aturan input ronde (survival)
+- Pemain aktif tidak wajib 8 (boleh 2-8 pemain aktif di sesi).
+- Pairing per ronde tidak wajib penuh 4 pair.
+- Jika jumlah pemain yang dipairing ganjil, boleh 1 pairing `MIRROR` (maksimal 1 MIRROR per ronde).
+- Tetap anti-duplicate: pemain tidak boleh muncul lebih dari sekali dalam ronde yang sama.
+
+## Format JSON per sesi
+
+Setiap file sesi hanya berisi:
+- `id`
+- `players` (nama pemain aktif)
+- `matches` (list item: `round_label`, `phase`, `round_no`, `player1`, `player2`)
+
+## Jalankan paling simpel
+
+Sekali setup (di folder project):
 
 ```bash
 cd gathering-data
-python -m pattern_analyzer tui
+python3 -m venv .venv
+. .venv/bin/activate
+pip install -e .
 ```
 
-Atau setelah install editable:
+Lalu setiap kali jalankan:
 
 ```bash
-pip install -e .
-mcgg-data tui
+mcgg-data
 ```
 
-## Perintah
-
-- `tui`: mulai sesi baru interaktif.
-- `resume`: lanjutkan sesi berdasarkan ID.
-- `report`: tampilkan analisis dari file sesi JSON.
-
-## Catatan ronde
-
-- Ronde monster (`i-1`, `ii-3`, `iii-3`, dst.) auto-skip.
-- Input hanya untuk ronde player (`i-2`, `i-3`, `i-4`, `ii-1`, `ii-2`, `ii-4`, `ii-5`, `ii-6`, dst.).
-- Satu ronde player wajib berisi 4 pairing untuk 8 pemain unik.
+Data disimpan di:
+- `gathering-data/data/sessions/*.json`

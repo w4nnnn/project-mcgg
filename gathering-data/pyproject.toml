@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "mcgg-gathering-data"
 version = "0.1.0"
-description = "Interactive TUI data gathering for 8-player MCGG matchmaking analysis"
+description = "Minimal Tkinter GUI untuk input pairing MCGG (2-8 pemain, dukungan MIRROR)"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = []

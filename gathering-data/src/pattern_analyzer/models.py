@@ -1,106 +1,120 @@
-"""Domain models and validation helpers."""
+"""Domain models and validation for gathering-data GUI app."""
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
 from typing import Any
-import uuid
-
-
-@dataclass
-class SessionState:
-    """Session persisted to JSON."""
-
-    id: str = field(default_factory=lambda: str(uuid.uuid4())[:8])
-    players: list[str] = field(default_factory=list)
-    phase: int = 1
-    round_no: int = 2
-    matches: list[dict[str, Any]] = field(default_factory=list)
-    created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
-    updated_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
-    ended_at: str | None = None
-    is_finished: bool = False
-    report: dict[str, Any] | None = None
-
-    def touch(self) -> None:
-        self.updated_at = datetime.now(timezone.utc).isoformat()
-
-
-def parse_pair(pair_text: str) -> tuple[str, str]:
-    """Parse A:C style pair."""
-    if ":" not in pair_text:
-        raise ValueError(f"Format pair tidak valid: '{pair_text}'. Gunakan 'A:B'.")
-    left, right = pair_text.split(":", 1)
-    p1 = left.strip()
-    p2 = right.strip()
-    if not p1 or not p2:
-        raise ValueError(f"Pair tidak lengkap: '{pair_text}'.")
-    if p1.lower() == p2.lower():
-        raise ValueError(f"Pair tidak boleh pemain yang sama: '{pair_text}'.")
-    return p1, p2
 
 
 def normalize_players(players: list[str]) -> list[str]:
-    """Trim and validate unique players."""
     normalized = [p.strip() for p in players if p.strip()]
-    if len(normalized) != 8:
-        raise ValueError("Jumlah pemain harus tepat 8 nama unik.")
-
+    if len(normalized) < 2:
+        raise ValueError("Minimal isi 2 nama pemain.")
+    if len(normalized) > 8:
+        raise ValueError("Maksimal 8 pemain.")
     seen: set[str] = set()
-    for p in normalized:
-        key = p.lower()
+    for player in normalized:
+        key = player.lower()
         if key in seen:
-            raise ValueError(f"Nama pemain duplikat: {p}")
+            raise ValueError(f"Nama duplikat: {player}")
         seen.add(key)
     return normalized
 
 
-def validate_round_pairs(players: list[str], raw_pairs: list[str]) -> list[tuple[str, str]]:
-    """Validate pairs, support mirror if odd players."""
-    n_players = len(players)
-    normalized_players = {p.lower(): p for p in players}
-    used: set[str] = set()
-    pairs: list[tuple[str, str]] = []
+def build_round_matches(
+    players: list[str],
+    round_label: str,
+    phase: int,
+    round_no: int,
+    pairs: list[tuple[str, str]],
+) -> list[dict[str, Any]]:
+    valid_players = {p.lower(): p for p in players}
+    used_players: set[str] = set()
+    seen_pairs: set[tuple[str, str]] = set()
+    matches: list[dict[str, Any]] = []
+    mirror_count = 0
 
-    # Cek jumlah pair
-    expected_pairs = n_players // 2
-    if n_players % 2 == 1:
-        expected_pairs += 1  # mirror tusun
-    if len(raw_pairs) != expected_pairs:
-        raise ValueError(f"Setiap ronde player harus berisi tepat {expected_pairs} pairing.")
+    filled_pairs = [(a.strip(), b.strip()) for a, b in pairs if a.strip() or b.strip()]
+    if not filled_pairs:
+        raise ValueError("Isi minimal 1 pairing.")
 
-    mirror_found = False
-    for raw in raw_pairs:
-        p1, p2 = parse_pair(raw)
-        k1 = p1.lower()
-        k2 = p2.lower()
-        # Mirror case
-        if n_players % 2 == 1 and (k2 == "mirror" or k1 == "mirror"):
-            if mirror_found:
-                raise ValueError("Hanya boleh ada satu pairing MIRROR di ronde ganjil.")
-            mirror_found = True
-            # Pastikan hanya satu pemain valid, satu MIRROR
-            if k1 == "mirror" and k2 == "mirror":
-                raise ValueError("Pair MIRROR tidak valid.")
-            real_player = k1 if k2 == "mirror" else k2
-            if real_player not in normalized_players:
-                raise ValueError(f"Nama pemain tidak terdaftar di sesi: '{raw}'")
-            if real_player in used:
-                raise ValueError(f"Pemain tidak boleh muncul lebih dari sekali: '{raw}'")
-            used.add(real_player)
-            pairs.append((normalized_players[real_player], "MIRROR"))
+    for a, b in filled_pairs:
+        if not a or not b:
+            raise ValueError("Pairing harus terisi lengkap (player1 dan player2).")
+
+        ka = a.lower()
+        kb = b.lower()
+
+        if ka == kb:
+            raise ValueError("Satu pairing tidak boleh pemain yang sama.")
+
+        if ka == "mirror" and kb == "mirror":
+            raise ValueError("Pairing MIRROR tidak valid.")
+
+        if ka == "mirror" or kb == "mirror":
+            mirror_count += 1
+            real_key = kb if ka == "mirror" else ka
+            if real_key not in valid_players:
+                raise ValueError("Player MIRROR harus dipasangkan dengan pemain terdaftar.")
+            if real_key in used_players:
+                raise ValueError("Pemain tidak boleh muncul lebih dari sekali di ronde yang sama.")
+            used_players.add(real_key)
+            matches.append(
+                {
+                    "round_label": round_label.strip(),
+                    "phase": int(phase),
+                    "round_no": int(round_no),
+                    "player1": valid_players[real_key],
+                    "player2": "MIRROR",
+                }
+            )
             continue
-        # Normal pair
-        if k1 not in normalized_players or k2 not in normalized_players:
-            raise ValueError(f"Nama pemain tidak terdaftar di sesi: '{raw}'")
-        if k1 in used or k2 in used:
-            raise ValueError(f"Pemain tidak boleh muncul lebih dari sekali: '{raw}'")
-        used.add(k1)
-        used.add(k2)
-        pairs.append((normalized_players[k1], normalized_players[k2]))
 
-    if len(used) != n_players:
-        raise ValueError("Tidak semua pemain tercatat di ronde ini.")
-    return pairs
+        if ka not in valid_players or kb not in valid_players:
+            raise ValueError("Ada pemain yang tidak terdaftar pada sesi.")
 
+        canonical = tuple(sorted((ka, kb)))
+        if canonical in seen_pairs:
+            raise ValueError("Ada pairing duplikat di ronde yang sama.")
+        if ka in used_players or kb in used_players:
+            raise ValueError("Pemain tidak boleh muncul lebih dari sekali di ronde yang sama.")
+
+        used_players.add(ka)
+        used_players.add(kb)
+        seen_pairs.add(canonical)
+
+        matches.append(
+            {
+                "round_label": round_label.strip(),
+                "phase": int(phase),
+                "round_no": int(round_no),
+                "player1": valid_players[ka],
+                "player2": valid_players[kb],
+            }
+        )
+
+    if mirror_count > 1:
+        raise ValueError("Maksimal 1 pairing MIRROR per ronde.")
+
+    return matches
+
+
+def round_key(match: dict[str, Any]) -> tuple[str, int, int]:
+    return (str(match["round_label"]), int(match["phase"]), int(match["round_no"]))
+
+
+def upsert_round_matches(existing_matches: list[dict[str, Any]], new_matches: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    if not new_matches:
+        return list(existing_matches)
+
+    key = round_key(new_matches[0])
+    filtered = [m for m in existing_matches if round_key(m) != key]
+    filtered.extend(new_matches)
+    return filtered
+
+
+def suggest_next_round(round_label: str, round_no: int) -> tuple[str, int]:
+    next_no = int(round_no) + 1
+    clean = round_label.strip()
+    if clean.startswith("i-") and clean[2:].isdigit():
+        return (f"i-{next_no}", next_no)
+    return (clean, next_no)
