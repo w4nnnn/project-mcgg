@@ -8,74 +8,69 @@ from typing import Any
 from pattern_analyzer.models import SessionState
 
 
-def build_report(session: SessionState) -> dict[str, Any]:
-    """Build simple frequency + anomaly report from stored matches."""
-    pair_counter: Counter[tuple[str, str]] = Counter()
-    player_opponents: dict[str, list[str]] = defaultdict(list)
-    active_by_round: dict[str, set[str]] = defaultdict(set)
-    round_pairs: dict[str, list[tuple[str, str]]] = defaultdict(list)
 
-    for match in session.matches:
-        p1 = match["player1"]
-        p2 = match["player2"]
-        label = match["round_label"]
-        pair = tuple(sorted((p1, p2)))
-        pair_counter[pair] += 1
-        player_opponents[p1].append(p2)
-        player_opponents[p2].append(p1)
-        active_by_round[label].add(p1)
-        active_by_round[label].add(p2)
-        round_pairs[label].append((p1, p2))
-
-    repeated_pairs = [
-        {"pair": f"{a} vs {b}", "count": count}
-        for (a, b), count in pair_counter.items()
-        if count > 1
-    ]
-    repeated_pairs.sort(key=lambda x: x["count"], reverse=True)
-
-    repeat_streaks: list[dict[str, str]] = []
-    for player, opps in player_opponents.items():
-        for idx in range(1, len(opps)):
-            if opps[idx] == opps[idx - 1]:
-                repeat_streaks.append(
-                    {
-                        "player": player,
-                        "opponent": opps[idx],
-                        "message": f"{player} bertemu {opps[idx]} beruntun.",
-                    }
-                )
-
-    active_warnings = []
-    for label, players in active_by_round.items():
-        if len(players) < 8:
-            active_warnings.append(
-                {
-                    "round": label,
-                    "active_players": len(players),
-                    "warning": "Pemain aktif < 8, akurasi pola menurun.",
-                }
-            )
-
-    total_rounds = len(round_pairs)
-    total_matches = len(session.matches)
-    confidence = "high"
-    if active_warnings:
-        confidence = "medium"
-    if len(active_warnings) > 2:
-        confidence = "low"
-
+def build_record(session: SessionState) -> dict[str, Any]:
+    """Return only id, players, and matches (no analysis)."""
     return {
-        "summary": {
-            "session_id": session.id,
-            "total_rounds_recorded": total_rounds,
-            "total_matches_recorded": total_matches,
-            "confidence": confidence,
-        },
-        "frequent_matchups": repeated_pairs,
-        "anomalies": {
-            "repeated_consecutive_opponents": repeat_streaks,
-            "active_player_warnings": active_warnings,
-        },
+        "id": session.id,
+        "players": session.players,
+        "matches": [
+            {
+                k: v
+                for k, v in match.items()
+                if k in ("round_label", "phase", "round_no", "player1", "player2")
+            }
+            for match in session.matches
+        ],
     }
+
+
+def find_static_rules(round_pairs: dict[str, list[tuple[str, str]]], player_opponents: dict[str, list[str]]) -> list[dict[str, str]]:
+    """
+    Analisis otomatis untuk mendeteksi rule statis baru pada pairing antar ronde.
+    Mencari hubungan konsisten antar lawan di ronde-ronde berurutan.
+    """
+    # Kumpulkan semua label ronde dan urutkan secara natural (misal: i-2, i-3, i-4, ii-1, ...)
+    import re
+    def round_sort_key(label):
+        m = re.match(r"([ivx]+)-(\d+)", label)
+        if not m:
+            return (label, 0)
+        roman, num = m.groups()
+        roman_map = {"i":1,"ii":2,"iii":3,"iv":4,"v":5,"vi":6,"vii":7,"viii":8,"ix":9,"x":10}
+        return (roman_map.get(roman, 0), int(num))
+    labels = sorted(round_pairs.keys(), key=round_sort_key)
+
+    # Cek untuk setiap pemain, apakah lawan di ronde N+1 selalu punya hubungan tetap dengan lawan di ronde N
+    rules = []
+    for idx in range(1, len(labels)):
+        prev_label = labels[idx-1]
+        curr_label = labels[idx]
+        prev_pairs = round_pairs[prev_label]
+        curr_pairs = round_pairs[curr_label]
+        # Buat mapping: pemain -> lawan di prev dan curr
+        prev_map = {p1: p2 for p1, p2 in prev_pairs}
+        prev_map.update({p2: p1 for p1, p2 in prev_pairs})
+        curr_map = {p1: p2 for p1, p2 in curr_pairs}
+        curr_map.update({p2: p1 for p1, p2 in curr_pairs})
+        # Cek apakah ada pola tetap, misal: lawan di curr selalu lawan dari lawan di prev
+        candidate = {}
+        for player in prev_map:
+            if player in curr_map:
+                prev_opp = prev_map[player]
+                curr_opp = curr_map[player]
+                candidate.setdefault((prev_opp, curr_opp), 0)
+                candidate[(prev_opp, curr_opp)] += 1
+        # Jika ada pola dominan, catat sebagai kandidat rule statis
+        if candidate:
+            most_common = max(candidate.items(), key=lambda x: x[1])
+            if most_common[1] >= len(prev_map) // 2:
+                rules.append({
+                    "from_round": prev_label,
+                    "to_round": curr_label,
+                    "pattern": f"Lawan di {curr_label} cenderung adalah lawan dari lawan di {prev_label}",
+                    "example": f"{most_common[0][0]} → {most_common[0][1]}",
+                    "support": f"{most_common[1]}/{len(prev_map)} pemain"
+                })
+    return rules
 
