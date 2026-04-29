@@ -57,18 +57,41 @@ def normalize_players(players: list[str]) -> list[str]:
 
 
 def validate_round_pairs(players: list[str], raw_pairs: list[str]) -> list[tuple[str, str]]:
-    """Validate 4 pairs include all 8 players exactly once."""
-    if len(raw_pairs) != 4:
-        raise ValueError("Setiap ronde player harus berisi tepat 4 pairing.")
-
+    """Validate pairs, support mirror if odd players."""
+    n_players = len(players)
     normalized_players = {p.lower(): p for p in players}
     used: set[str] = set()
     pairs: list[tuple[str, str]] = []
 
+    # Cek jumlah pair
+    expected_pairs = n_players // 2
+    if n_players % 2 == 1:
+        expected_pairs += 1  # mirror tusun
+    if len(raw_pairs) != expected_pairs:
+        raise ValueError(f"Setiap ronde player harus berisi tepat {expected_pairs} pairing.")
+
+    mirror_found = False
     for raw in raw_pairs:
         p1, p2 = parse_pair(raw)
         k1 = p1.lower()
         k2 = p2.lower()
+        # Mirror case
+        if n_players % 2 == 1 and (k2 == "mirror" or k1 == "mirror"):
+            if mirror_found:
+                raise ValueError("Hanya boleh ada satu pairing MIRROR di ronde ganjil.")
+            mirror_found = True
+            # Pastikan hanya satu pemain valid, satu MIRROR
+            if k1 == "mirror" and k2 == "mirror":
+                raise ValueError("Pair MIRROR tidak valid.")
+            real_player = k1 if k2 == "mirror" else k2
+            if real_player not in normalized_players:
+                raise ValueError(f"Nama pemain tidak terdaftar di sesi: '{raw}'")
+            if real_player in used:
+                raise ValueError(f"Pemain tidak boleh muncul lebih dari sekali: '{raw}'")
+            used.add(real_player)
+            pairs.append((normalized_players[real_player], "MIRROR"))
+            continue
+        # Normal pair
         if k1 not in normalized_players or k2 not in normalized_players:
             raise ValueError(f"Nama pemain tidak terdaftar di sesi: '{raw}'")
         if k1 in used or k2 in used:
@@ -77,7 +100,7 @@ def validate_round_pairs(players: list[str], raw_pairs: list[str]) -> list[tuple
         used.add(k2)
         pairs.append((normalized_players[k1], normalized_players[k2]))
 
-    if len(used) != 8:
+    if len(used) != n_players:
         raise ValueError("Tidak semua pemain tercatat di ronde ini.")
     return pairs
 

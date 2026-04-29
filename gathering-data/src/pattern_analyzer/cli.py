@@ -91,10 +91,18 @@ def _collect_round_pairs(
     players: list[str],
     chooser: Callable[[str, list[str], str], str] = _select_with_arrow,
 ) -> list[str]:
+    import random
     print(f"\nRonde {label}: pilih pairing dengan panah atas/bawah lalu Enter")
     remaining = players.copy()
     pairs: list[str] = []
     pair_no = 1
+    # Jika jumlah pemain ganjil, pilih satu random untuk mirror
+    if len(remaining) % 2 == 1:
+        tusun_player = random.choice(remaining)
+        pairs.append(f"{tusun_player}:MIRROR")
+        print(f"Pair #{pair_no} = {tusun_player}:MIRROR (tusun)")
+        remaining = [name for name in remaining if name.lower() != tusun_player.lower()]
+        pair_no += 1
     while len(remaining) >= 2:
         pair_template = f"Pair #{pair_no} = ?:?"
         p1 = chooser(
