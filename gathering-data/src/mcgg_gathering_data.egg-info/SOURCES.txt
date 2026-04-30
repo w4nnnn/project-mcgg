@@ -7,15 +7,9 @@ src/mcgg_gathering_data.egg-info/entry_points.txt
 src/mcgg_gathering_data.egg-info/top_level.txt
 src/pattern_analyzer/__init__.py
 src/pattern_analyzer/__main__.py
-src/pattern_analyzer/analysis.py
 src/pattern_analyzer/cli.py
 src/pattern_analyzer/gui.py
 src/pattern_analyzer/models.py
-src/pattern_analyzer/rounds.py
-src/pattern_analyzer/service.py
 src/pattern_analyzer/storage.py
-tests/test_cli.py
 tests/test_models.py
-tests/test_rounds.py
-tests/test_service.py
 tests/test_storage.py

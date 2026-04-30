@@ -1,41 +1,48 @@
 Metadata-Version: 2.4
 Name: mcgg-gathering-data
 Version: 0.1.0
-Summary: Minimal Tkinter GUI untuk input dan penyimpanan pairing 8 pemain MCGG
+Summary: Minimal Tkinter GUI untuk input pairing MCGG (2-8 pemain, dukungan MIRROR)
 Requires-Python: >=3.10
 Description-Content-Type: text/markdown
 
 # MCGG Gathering Data (GUI Tkinter)
 
-Aplikasi GUI minimalis untuk:
+Aplikasi GUI untuk:
 - Buat sesi baru
 - Lihat daftar sesi lama
 - Buka ulang sesi
-- Edit/simpan sesi
-- Hapus sesi
-- Input pairing ronde via dropdown dengan validasi anti-duplicate
+- Edit/hapus sesi
+- Input pairing ronde via dropdown
+
+## Aturan input ronde (survival)
+- Pemain aktif tidak wajib 8 (boleh 2-8 pemain aktif di sesi).
+- Pairing per ronde tidak wajib penuh 4 pair.
+- Jika jumlah pemain yang dipairing ganjil, boleh 1 pairing `MIRROR` (maksimal 1 MIRROR per ronde).
+- Tetap anti-duplicate: pemain tidak boleh muncul lebih dari sekali dalam ronde yang sama.
 
 ## Format JSON per sesi
 
 Setiap file sesi hanya berisi:
 - `id`
-- `players` (8 nama)
+- `players` (nama pemain aktif)
 - `matches` (list item: `round_label`, `phase`, `round_no`, `player1`, `player2`)
 
-## Jalankan
+## Jalankan paling simpel
+
+Sekali setup (di folder project):
 
 ```bash
 cd gathering-data
-python3 -m pattern_analyzer
+python3 -m venv .venv
+. .venv/bin/activate
+pip install -e .
 ```
 
-Atau:
+Lalu setiap kali jalankan:
 
 ```bash
-python3 -m pattern_analyzer.cli
+mcgg-data
 ```
-
-## Penyimpanan
 
 Data disimpan di:
 - `gathering-data/data/sessions/*.json`
